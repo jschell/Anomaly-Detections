@@ -1,4 +1,12 @@
-"""Versioned Isolation Forest over derived aggregate features."""
+"""Versioned Isolation Forest over derived aggregate features.
+
+scikit-learn does not currently provide complete type stubs for these APIs, so
+unknown-member/type diagnostics are isolated to this integration module.
+"""
+
+# pyright: reportMissingTypeStubs=false, reportUnknownMemberType=false
+# pyright: reportUnknownVariableType=false, reportUnknownArgumentType=false
+# pyright: reportArgumentType=false
 
 import json
 import pickle

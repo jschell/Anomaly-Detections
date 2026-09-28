@@ -19,6 +19,8 @@ from siem_anomaly.findings import FindingStore
 from siem_anomaly.incidents import IncidentEvidenceStore
 from siem_anomaly.models import (
     IsolationForestArtifact,
+    ModelComparison,
+    finalize_isolation_forest,
     fit_isolation_forest,
     score_isolation_forest,
 )
@@ -207,6 +209,17 @@ class EngagementContext:
             model_id=model_id,
             feature_version=feature_version,
             contamination=contamination,
+        )
+
+    def finalize_isolation_forest(
+        self,
+        artifact: IsolationForestArtifact,
+        comparison: ModelComparison,
+    ) -> IsolationForestArtifact | None:
+        return finalize_isolation_forest(
+            artifact,
+            comparison,
+            models_root=self.paths.models,
         )
 
     def score_isolation_forest(

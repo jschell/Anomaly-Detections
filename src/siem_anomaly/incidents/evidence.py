@@ -12,7 +12,13 @@ class IncidentEvidenceStore:
     root: Path
     policy: PersistencePolicy
 
-    def promote(self, incident_id: str, data: TabularData, *, filename: str = "events.parquet") -> Path:
+    def promote(
+        self,
+        incident_id: str,
+        data: TabularData,
+        *,
+        filename: str = "events.parquet",
+    ) -> Path:
         """Persist selected full events through an explicitly incident-scoped API."""
         self.policy.assert_allowed(ArtifactKind.INCIDENT_EVIDENCE, explicit_incident=True)
         if not incident_id.strip():

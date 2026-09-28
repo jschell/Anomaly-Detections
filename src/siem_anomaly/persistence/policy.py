@@ -38,7 +38,12 @@ class PersistencePolicy:
     def assert_allowed(self, kind: ArtifactKind, *, explicit_incident: bool = False) -> None:
         if kind in _DERIVED_ALLOWED:
             return
-        if kind is ArtifactKind.INCIDENT_EVIDENCE and self.allow_incident_evidence and explicit_incident:
+        incident_allowed = (
+            kind is ArtifactKind.INCIDENT_EVIDENCE
+            and self.allow_incident_evidence
+            and explicit_incident
+        )
+        if incident_allowed:
             return
         if kind is ArtifactKind.RAW_EVENT:
             raise PermissionError("Ordinary raw SIEM events may not be persisted")

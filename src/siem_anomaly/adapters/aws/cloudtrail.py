@@ -7,7 +7,13 @@ AWS_CLOUDTRAIL_ADAPTER = MappingAdapter(
     source_id="aws.cloudtrail",
     bindings=(
         FieldBinding("timestamp", "eventTime", Capability.TIMESTAMP, "event_time", True),
-        FieldBinding("actor", "userIdentity.arn", Capability.ACTOR, "authenticated_principal", True),
+        FieldBinding(
+            "actor",
+            "userIdentity.arn",
+            Capability.ACTOR,
+            "authenticated_principal",
+            True,
+        ),
         FieldBinding("source_ip", "sourceIPAddress", Capability.SOURCE_IP, "client_origin"),
         FieldBinding("application", "eventSource", Capability.APPLICATION, "cloud_service"),
         FieldBinding("action", "eventName", Capability.ACTION, "api_action"),

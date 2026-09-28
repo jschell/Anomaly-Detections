@@ -39,9 +39,7 @@ class ModelComparison:
 def _feature_columns(frame: pl.DataFrame) -> tuple[str, ...]:
     excluded = {"actor", "window"}
     return tuple(
-        name
-        for name, dtype in frame.schema.items()
-        if name not in excluded and dtype.is_numeric()
+        name for name, dtype in frame.schema.items() if name not in excluded and dtype.is_numeric()
     )
 
 

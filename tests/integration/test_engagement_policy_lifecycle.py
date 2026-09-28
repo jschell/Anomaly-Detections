@@ -4,7 +4,6 @@ from pathlib import Path
 
 import polars as pl
 import pytest
-import yaml
 
 from siem_anomaly import open_engagement
 from siem_anomaly.core.domain import Finding
@@ -29,9 +28,9 @@ def test_policy_can_disable_investigating_evidence_but_allow_confirmed_incident(
 ) -> None:
     root = tmp_path / "anomaly"
     initial = open_engagement(root)
-    payload = yaml.safe_load(initial.paths.config.read_text(encoding="utf-8"))
+    payload = json.loads(initial.paths.config.read_text(encoding="utf-8"))
     payload["evidence"]["investigating"]["enabled"] = False
-    initial.paths.config.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    initial.paths.config.write_text(json.dumps(payload), encoding="utf-8")
     ctx = open_engagement(root)
 
     record = ctx.workflow.start(_finding(), investigation_id="INV-DISABLED")

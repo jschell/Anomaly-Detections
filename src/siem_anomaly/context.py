@@ -32,6 +32,7 @@ from siem_anomaly.models import (
     fit_isolation_forest,
     score_isolation_forest,
 )
+from siem_anomaly.persistence.config import EngagementConfig, load_or_create_config
 from siem_anomaly.persistence.layout import EngagementPaths
 from siem_anomaly.persistence.policy import PersistencePolicy
 from siem_anomaly.persistence.stores import EngagementStores
@@ -43,6 +44,7 @@ from siem_anomaly.workflow import AnalystWorkflow
 class EngagementContext:
     root: Path
     paths: EngagementPaths
+    config: EngagementConfig
     policy: PersistencePolicy
     stores: EngagementStores
     features: FeatureRepository
@@ -58,11 +60,13 @@ class EngagementContext:
         root_path = Path(root).expanduser().resolve()
         paths = EngagementPaths(root_path)
         paths.initialize()
-        policy = PersistencePolicy()
+        config = load_or_create_config(paths.config)
+        policy = PersistencePolicy.from_config(config)
         stores = EngagementStores.create(paths=paths, policy=policy)
         return cls(
             root=root_path,
             paths=paths,
+            config=config,
             policy=policy,
             stores=stores,
             features=FeatureRepository(stores),

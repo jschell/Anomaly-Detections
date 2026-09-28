@@ -9,6 +9,10 @@ class EngagementPaths:
     root: Path
 
     @property
+    def config(self) -> Path:
+        return self.root / "config.yaml"
+
+    @property
     def manifests(self) -> Path:
         return self.root / "manifests"
 

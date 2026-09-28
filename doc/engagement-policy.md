@@ -2,16 +2,23 @@
 
 Each engagement has a versioned `config.yaml` under its anomaly workspace. The file controls engagement-specific evidence lifecycle behavior. It does not weaken framework storage invariants.
 
+The generated file is formatted as JSON, which is valid YAML 1.2, so no additional runtime YAML dependency is required.
+
 Example:
 
-```yaml
-schema_version: "1"
-evidence:
-  investigating:
-    enabled: true
-    retention_days: 14
-  incident:
-    retention: engagement
+```json
+{
+  "schema_version": "1",
+  "evidence": {
+    "investigating": {
+      "enabled": true,
+      "retention_days": 14
+    },
+    "incident": {
+      "retention": "engagement"
+    }
+  }
+}
 ```
 
 ## Framework invariants

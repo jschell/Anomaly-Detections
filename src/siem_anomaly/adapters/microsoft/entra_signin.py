@@ -73,4 +73,6 @@ class EntraSigninAdapter:
         missing = [source for source in mapping.values() if source not in df.columns]
         if missing:
             raise ValueError(f"Missing source fields: {missing}")
-        return df.select([pl.col(source).alias(canonical) for canonical, source in mapping.items()])
+        return df.select(
+            [pl.col(source).alias(canonical) for canonical, source in mapping.items()]
+        )

@@ -2,6 +2,6 @@
 
 There are currently no queued plans.
 
-Plans 03–10 are complete. Plans 00–02 remain active for residual foundation, persistence-configuration, and adapter-contract cleanup.
+Plans 00–10 are complete and validated. The implemented roadmap covers package foundation, storage policy, provider capabilities, behavioral state, provenance/backfill, explainable detection, known-incident replay, analyst evidence workflow, gated multivariate models, multi-provider correlation, and cross-environment feature-portability research.
 
-The implemented roadmap now covers behavioral feature/state generation, provenance/backfill, explainable detection, known-incident replay, analyst evidence workflow, gated multivariate models, multi-provider correlation, and cross-environment feature-portability research.
+Future work should be proposed as a new scoped plan rather than treated as unfinished work from Plans 00–10.

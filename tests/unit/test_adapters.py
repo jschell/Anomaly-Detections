@@ -31,9 +31,7 @@ def test_entra_signin_profiles_capabilities() -> None:
 
 
 def test_entra_signin_supports_field_overrides() -> None:
-    adapter = ENTRA_SIGNIN_ADAPTER.with_overrides(
-        {"actor": "AccountUPN", "source_ip": "ClientIP"}
-    )
+    adapter = ENTRA_SIGNIN_ADAPTER.with_overrides({"actor": "AccountUPN", "source_ip": "ClientIP"})
     frame = pl.DataFrame(
         {
             "TimeGenerated": ["2026-09-28T12:00:00Z"],

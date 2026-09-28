@@ -203,11 +203,7 @@ class AnalystWorkflow:
     def _read_json(path: Path) -> InvestigationRecord:
         payload: dict[str, object] = json.loads(path.read_text(encoding="utf-8"))
         notes_value = payload.get("notes")
-        notes = (
-            tuple(str(item) for item in notes_value)
-            if isinstance(notes_value, list)
-            else ()
-        )
+        notes = tuple(str(item) for item in notes_value) if isinstance(notes_value, list) else ()
         return InvestigationRecord(
             investigation_id=str(payload["investigation_id"]),
             finding_id=str(payload["finding_id"]),

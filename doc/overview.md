@@ -2,281 +2,92 @@
 
 ## Purpose
 
-This repository will provide a reusable Python anomaly-detection and behavioral-analytics framework intended to be imported by existing Jupyter notebook repositories that already query SIEM data.
+This repository provides a reusable Python anomaly-detection and behavioral-analytics framework intended to be imported by existing Jupyter notebook repositories that already query SIEM data.
 
-The framework is intentionally separate from SIEM query notebooks. Notebook repositories remain responsible for authentication, SIEM connectivity, KQL or other provider-specific query execution, and interactive investigation. This repository consumes in-memory tabular results and maintains derived behavioral state, models, findings, and evaluation artifacts.
+Notebook repositories remain responsible for authentication, SIEM connectivity, query execution, transient raw DataFrames, and interactive investigation. This package consumes in-memory tabular results and maintains derived behavioral state, models, findings, correlation artifacts, and evaluation summaries.
 
-## Intended Shape
-
-```text
-Existing Jupyter / SIEM repository
-        |
-        | query results (Pandas / Polars / Arrow)
-        v
-Anomaly-Detections package
-        |
-        +-- provider adapters
-        +-- feature extraction
-        +-- relationship state
-        +-- rhythm-of-business baselines
-        +-- anomaly detectors
-        +-- evaluation / incident replay
-        +-- findings / explanations
-        |
-        v
-Engagement-local derived storage
-```
-
-The package should be installable into the same Python environment as the consuming notebooks and imported with a small analyst-facing API.
-
-Example target usage:
-
-```python
-import siem_anomaly as sa
-
-ctx = sa.open_engagement(engagement_path)
-
-profile = ctx.profile(df, source="microsoft.entra_signin")
-available = ctx.discover(df, source="microsoft.entra_signin")
-findings = ctx.detect(df, source="microsoft.entra_signin")
-```
-
-## Repository Boundaries
-
-### Existing notebook repositories own
-
-- SIEM credentials and authentication
-- SIEM query execution
-- provider/query-specific retrieval logic
-- transient raw DataFrames
-- interactive analyst investigation
-- pivots back to source telemetry
-
-### This repository owns
-
-- provider adapters and semantic mappings
-- capability discovery
-- derived feature generation
-- relationship and entity state
-- historical and rhythm-of-business baselines
-- novelty, rarity, statistical, and later ML detectors
-- detector and feature catalogs
-- finding schemas and explanations
-- known-incident replay and backtesting
-- feature portability research
-- engagement-local persistence controls
-
-## Storage Policy
-
-The SIEM remains the authoritative system of record for ordinary raw telemetry.
-
-### Raw events
-
-Ordinary raw events:
-
-- may be queried into notebook memory
-- may be displayed and investigated
-- must not be persisted as a general local archive
-
-Full raw events may be retained only when they are directly associated with an active investigation or incident and are explicitly promoted into the incident evidence store.
-
-### Derived data
-
-The engagement folder may persist derived behavioral information such as:
-
-- frequencies and counts
-- ratios and percentiles
-- anomaly feature values
-- entity and relationship state
-- first/last seen behavioral summaries
-- rarity and novelty summaries
-- rhythm-of-business distributions
-- historical baselines
-- trained model artifacts
-- findings
-- analyst labels
-- backtest/evaluation results
-- provenance/manifests
-
-Persisted behavioral rows should represent aggregates, relationship state, baselines, or findings rather than one persisted row per source event.
-
-## Engagement-Local Storage
-
-A consuming notebook points the package at an engagement-specific workspace.
-
-Target layout:
+## Implemented Architecture
 
 ```text
-engagement/
-└── anomaly/
-    ├── config.yaml
-    ├── manifests/
-    ├── features/
-    │   ├── actor_hour/
-    │   ├── actor_day/
-    │   ├── service_hour/
-    │   ├── resource_hour/
-    │   └── operation_hour/
-    ├── state/
-    │   ├── entity/
-    │   ├── relationships/
-    │   └── temporal/
-    ├── baselines/
-    │   ├── entity/
-    │   ├── organization/
-    │   └── rhythm/
-    ├── models/
-    ├── findings/
-    ├── evaluation/
-    │   ├── known_incidents/
-    │   ├── exclusions/
-    │   ├── labels/
-    │   └── replay_results/
-    └── incidents/
-        └── INC-*/
-            ├── manifest.yaml
-            ├── events.parquet
-            ├── findings.json
-            └── notes/
+SIEM / source systems
+        |
+        | transient notebook query results
+        v
+provider adapters
+        |
+        v
+canonical semantic capabilities
+        |
+        +--> derived behavioral features / relationship state
+        +--> rhythm-of-business baselines
+        +--> generic detectors
+        +--> provider-specific notable-action packs
+        |
+        v
+findings
+        |
+        +--> SIEM pivot / analyst investigation
+        +--> cross-source finding correlation
+        +--> known-incident replay/evaluation
+        |
+        v
+engagement-local derived storage
 ```
 
-The package must not use a global behavioral cache that mixes engagements.
+Ordinary raw telemetry remains in the SIEM. Full source events may be retained only through the explicit investigation/incident evidence workflow.
 
-## Provider-Neutral Design
+## Providers
 
-Microsoft is the first provider family, not the architecture.
+Implemented adapters:
 
-The core package should work from provider-neutral semantic concepts such as:
-
-- timestamp
-- actor
-- actor type
-- action
-- target/resource
-- source IP
-- application/service
-- outcome
-- region
-- device
-- authentication context
-
-Provider adapters map source-specific records into those concepts while retaining provider-specific semantics for specialized detections.
-
-Planned provider families:
-
-- Microsoft Entra ID
+- Microsoft Entra sign-in
+- Microsoft Entra Audit
 - Azure Activity
-- Microsoft 365 audit
+- Microsoft 365 Audit
 - Okta System Log
-- AWS CloudTrail / IAM / sign-in related telemetry
-- GCP Audit Logs / IAM related telemetry
+- AWS CloudTrail
+- GCP Audit Logs
 
-Generic detectors must depend on capabilities and semantic fields, not import provider-specific adapters.
+Provider-specific field names map into canonical concepts such as timestamp, actor, source IP, application/service, action, target/resource, region, and outcome.
 
-## Detector Strategy
-
-Initial detector priority:
-
-1. relationship novelty
-2. conditional rarity
-3. rhythm-of-business deviation
-4. robust historical deviation
-5. relationship change
-6. organization-relative deviation
-7. Isolation Forest
-8. Random Cut Forest / time-series models
-9. sequence and graph methods
-
-A detector score is an anomaly or prioritization signal, not a probability that activity is malicious.
-
-Each finding should explain why it was produced and preserve enough source/time/entity context to pivot back to the SIEM.
+Generic detectors depend on capabilities rather than importing provider modules.
 
 ## Behavioral State
 
-Important persisted behavioral constructs include:
+Persisted behavioral state includes actor-hour/day, service/resource/operation/environment hourly aggregates, actor relationship state, and actor/environment rhythm baselines.
 
-- actor -> IP
-- actor -> application
-- actor -> country
-- actor -> resource/resource type
-- actor -> operation
-- service principal/workload identity -> resource
-- principal -> subscription/account/project
+Relationship state emphasizes behavioral summaries such as first/last seen date, count, days seen, and rarity rather than reconstructing individual event histories.
 
-Relationship state should emphasize behavioral summaries rather than event recreation, for example:
+## Detection
 
-- first seen date
-- last seen date
-- count over rolling windows
-- days observed
-- frequency/rarity
-- temporal distribution
+Implemented explainable detector families include relationship novelty, conditional rarity, relationship change, rhythm deviation, volume deviation, robust historical deviation, and organization-relative deviation.
 
-## Rhythm of Business
+Provider-specific notable-action packs add source-aware prioritization signals while explicitly avoiding claims that the action itself is malicious.
 
-Rhythm-of-business modeling is a first-class feature family.
+## Cross-Source Correlation
 
-Baselines should eventually operate at multiple scopes:
+Entity equivalence is explicit rather than inferred.
 
-- entity
-- service/workload
-- environment/organization
+An alias resolver maps provider-specific identities to canonical entity IDs with confidence. Findings can then be clustered across providers using canonical identity, time proximity, source IP, application, and resource dimensions.
 
-Useful dimensions include:
+Correlation operates on findings/derived dimensions and does not merge raw telemetry stores.
 
-- hour of day
-- weekday
-- activity volume
-- unique resource/application/IP diversity
-- failure ratio
-- operation mix
+## Evaluation and Models
 
-This is intended to distinguish meaningful anomalies from predictable business cycles.
+Known incidents can be replayed against leakage-safe pre-incident baselines. Metrics include rank, precision/recall at analyst-reviewable cutoffs, false positives, lead time, effect sizes, and detector ablation.
 
-## Evaluation
+Isolation Forest is supported over derived aggregate features, but candidates are retained only when replay metrics demonstrate incremental operational value. Further model escalation is deferred otherwise.
 
-Known malicious or incident datasets should be used primarily for replay, feature discovery, threshold evaluation, and regression testing rather than immediately training a binary malicious/benign classifier.
+## Feature Portability Research
 
-Important metrics include:
+The formal feature registry tracks feature identity/version, family, persistence, storage class, detector consumers, maturity, and expected portability.
 
-- rank of known incident activity
-- precision@10 / @25 / @50
-- recall of known incidents within analyst-reviewable results
-- false positives per entity/detector
-- time to first signal / lead time
-- feature ablation results
+Per-engagement replay results can be converted to approved metrics-only feature summaries. Cross-environment research operates on those summaries and supports high/medium/low portability assessment and leave-one-environment-out validation.
 
-Confirmed incident periods should be excludable from baseline/model training.
-
-## Cross-Environment Feature Research
-
-The framework should identify portable properties such as:
-
-- first-seen relationships
-- rarity percentile
-- relative volume deviations
-- activity-time deviation
-- diversity changes
-- sequence summaries
-- relationship/graph changes
-
-Raw customer telemetry and detailed engagement relationship stores must not be combined across engagements. Cross-environment research should operate on explicitly exported evaluation metrics and feature-performance summaries.
+Raw customer telemetry and detailed relationship stores are never combined for cross-environment research.
 
 ## Plan Workflow
 
-Project plans live under:
+`doc/plan/active/` contains work still in progress, `complete/` contains validated plans, and `queue/` contains future plans.
 
-```text
-doc/plan/
-├── active/
-├── complete/
-└── queue/
-```
-
-New plans are created in `queue/`.
-
-When work begins, the corresponding plan moves to `active/`.
-
-When implementation and validation are complete, it moves to `complete/`.
-
-The queued plans define the initial implementation sequence for this repository.
+Plans 03–10 are complete. Plans 00–02 remain active for residual foundation/configuration cleanup.

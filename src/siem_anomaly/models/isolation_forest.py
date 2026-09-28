@@ -10,7 +10,8 @@ unknown-member/type diagnostics are isolated to this integration module.
 
 import json
 import pickle
-from dataclasses import asdict, dataclass
+import shutil
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
@@ -68,7 +69,7 @@ def fit_isolation_forest(
     contamination: float = 0.02,
     random_state: int = 42,
 ) -> IsolationForestArtifact:
-    """Fit and persist an engagement-local model from derived actor-hour features."""
+    """Fit an engagement-local candidate from derived actor-hour features."""
     if actor_hour.is_empty():
         raise ValueError("Cannot train Isolation Forest on an empty feature set")
     columns = _feature_columns(actor_hour)
@@ -90,7 +91,9 @@ def fit_isolation_forest(
     training_start = _as_utc(actor_hour.get_column("window").min())
     training_end = _as_utc(actor_hour.get_column("window").max())
 
-    model_dir = models_root / "isolation_forest" / model_id
+    model_dir = models_root / "_candidates" / "isolation_forest" / model_id
+    if model_dir.exists():
+        shutil.rmtree(model_dir)
     model_dir.mkdir(parents=True, exist_ok=True)
     model_path = model_dir / "model.pkl"
     metadata_path = model_dir / "metadata.json"
@@ -107,13 +110,35 @@ def fit_isolation_forest(
         model_path=model_path,
         metadata_path=metadata_path,
     )
-    payload = asdict(artifact)
-    payload["training_start"] = training_start.isoformat()
-    payload["training_end"] = training_end.isoformat()
-    payload["model_path"] = str(model_path)
-    payload["metadata_path"] = str(metadata_path)
-    metadata_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    _write_metadata(artifact, status="candidate")
     return artifact
+
+
+def finalize_isolation_forest(
+    artifact: IsolationForestArtifact,
+    comparison: ModelComparison,
+    *,
+    models_root: Path,
+) -> IsolationForestArtifact | None:
+    """Retain an approved candidate or remove it when it adds no operational value."""
+    candidate_dir = artifact.model_path.parent
+    if not comparison.retained:
+        if candidate_dir.exists():
+            shutil.rmtree(candidate_dir)
+        return None
+
+    retained_dir = models_root / "isolation_forest" / artifact.model_id
+    if retained_dir.exists():
+        shutil.rmtree(retained_dir)
+    retained_dir.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(candidate_dir), str(retained_dir))
+    retained = replace(
+        artifact,
+        model_path=retained_dir / "model.pkl",
+        metadata_path=retained_dir / "metadata.json",
+    )
+    _write_metadata(retained, status="retained", comparison=comparison)
+    return retained
 
 
 def score_isolation_forest(
@@ -149,7 +174,7 @@ def compare_model_to_deterministic(
     deterministic_precision_at_n: float,
     n: int = 10,
 ) -> ModelComparison:
-    """Retain the model only when incident ranking/precision improves."""
+    """Approve retention only when incident ranking or precision improves."""
     ranked = scores.sort("anomaly_score", descending=True)
     labels = [
         (
@@ -181,6 +206,26 @@ def compare_model_to_deterministic(
         model_precision_at_n=model_precision,
         retained=retained,
         reason=reason,
+    )
+
+
+def _write_metadata(
+    artifact: IsolationForestArtifact,
+    *,
+    status: str,
+    comparison: ModelComparison | None = None,
+) -> None:
+    payload = asdict(artifact)
+    payload["training_start"] = artifact.training_start.isoformat()
+    payload["training_end"] = artifact.training_end.isoformat()
+    payload["model_path"] = str(artifact.model_path)
+    payload["metadata_path"] = str(artifact.metadata_path)
+    payload["status"] = status
+    if comparison is not None:
+        payload["comparison"] = asdict(comparison)
+    artifact.metadata_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True),
+        encoding="utf-8",
     )
 
 

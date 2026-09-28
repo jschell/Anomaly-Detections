@@ -3,6 +3,23 @@
 ## Goal
 Enforce the engagement storage policy in code before any detector persists data.
 
+## Progress
+
+Implemented:
+- artifact kinds and centralized `PersistencePolicy`
+- explicit rejection of ordinary raw-event persistence
+- engagement-local directory initialization
+- purpose-scoped derived Parquet stores for features, state, baselines, and evaluation
+- path traversal protection
+- explicit incident-scoped full-event promotion API
+- tests verifying derived writes, raw-event rejection, incident scoping, engagement layout, and path safety
+
+Remaining before completion:
+- engagement `config.yaml` schema
+- investigating vs confirmed incident retention/lifecycle hooks
+- model/finding/manifest writer implementations as those artifact formats are finalized
+- policy-driven cleanup behavior for dismissed temporary investigations
+
 ## Core policy
 - Ordinary raw SIEM events remain in the SIEM.
 - Raw query results may exist transiently in notebook/kernel memory.

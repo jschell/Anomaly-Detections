@@ -26,6 +26,7 @@ dependencies = [
 [dependency-groups]
 dev = [
   "pandas-stubs>=2.2",
+  "pyarrow-stubs>=20.0.0.20260819",
   "pyright>=1.1.380",
   "pytest>=8.3",
   "pytest-cov>=5",

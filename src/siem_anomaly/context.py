@@ -70,42 +70,43 @@ class EngagementContext:
         source: str,
         query_id: str,
         feature_version: str = "identity-v1",
+        window_start: datetime | None = None,
+        window_end: datetime | None = None,
     ) -> ManifestRecord:
         frame = self.normalize(data, source=source)
         if frame.is_empty():
-            raise ValueError("Cannot derive behavioral state from an empty dataframe")
-        batch = derive_identity_features(frame)
-        timestamp = frame.select(
-            pl.col("timestamp")
-            .cast(pl.Utf8)
-            .str.to_datetime(strict=False, time_zone="UTC")
-            .min()
-            .alias("start"),
-            pl.col("timestamp")
-            .cast(pl.Utf8)
-            .str.to_datetime(strict=False, time_zone="UTC")
-            .max()
-            .alias("end"),
-        ).row(0, named=True)
-        start = _as_utc(timestamp["start"])
-        end = _as_utc(timestamp["end"])
-        provisional = ManifestRecord.create(
-            feature_set="identity",
-            feature_version=feature_version,
-            source=source,
-            query_id=query_id,
-            start=start,
-            end=end,
-            source_rows=frame.height,
-            derived_rows=0,
-            adapter_version="1",
-            framework_version="0.0.0",
-        )
-        derived_rows = self.features.persist_batch(
-            batch,
-            feature_version=feature_version,
-            token=provisional.query_hash,
-        )
+            if window_start is None or window_end is None:
+                raise ValueError(
+                    "Empty SIEM results require explicit window_start and window_end "
+                    "so coverage can still be recorded"
+                )
+            start = window_start.astimezone(UTC)
+            end = window_end.astimezone(UTC)
+            derived_rows = 0
+        else:
+            batch = derive_identity_features(frame)
+            inferred_start, inferred_end = _event_window(frame)
+            start = (window_start or inferred_start).astimezone(UTC)
+            end = (window_end or inferred_end).astimezone(UTC)
+            provisional = ManifestRecord.create(
+                feature_set="identity",
+                feature_version=feature_version,
+                source=source,
+                query_id=query_id,
+                start=start,
+                end=end,
+                source_rows=frame.height,
+                derived_rows=0,
+                adapter_version="1",
+                framework_version="0.0.0",
+            )
+            derived_rows = self.features.persist_batch(
+                batch,
+                feature_version=feature_version,
+                token=provisional.query_hash,
+            )
+        if end < start:
+            raise ValueError("window_end must not be before window_start")
         record = ManifestRecord.create(
             feature_set="identity",
             feature_version=feature_version,
@@ -166,6 +167,22 @@ class EngagementContext:
         if persist and findings:
             self.findings.write(findings, source=source, token=findings[0].finding_id)
         return findings
+
+
+def _event_window(frame: pl.DataFrame) -> tuple[datetime, datetime]:
+    timestamp = frame.select(
+        pl.col("timestamp")
+        .cast(pl.Utf8)
+        .str.to_datetime(strict=False, time_zone="UTC")
+        .min()
+        .alias("start"),
+        pl.col("timestamp")
+        .cast(pl.Utf8)
+        .str.to_datetime(strict=False, time_zone="UTC")
+        .max()
+        .alias("end"),
+    ).row(0, named=True)
+    return _as_utc(timestamp["start"]), _as_utc(timestamp["end"])
 
 
 def _as_utc(value: object) -> datetime:

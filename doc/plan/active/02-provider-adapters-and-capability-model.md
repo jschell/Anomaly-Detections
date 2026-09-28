@@ -3,6 +3,25 @@
 ## Goal
 Build a provider-neutral semantic and capability layer that supports Microsoft first and AWS, GCP, and Okta later without redesign.
 
+## Progress
+
+Implemented:
+- provider-neutral actor/resource/event domain records
+- typed semantic capability enum and field bindings
+- semantic-role metadata
+- per-field capability completeness calculation
+- generic declarative `MappingAdapter`
+- adapter registry
+- Microsoft Entra sign-in adapter
+- field override support for notebook queries that rename/project columns
+- identical generic mapping/profile logic tested against a synthetic non-Microsoft authentication source
+- no provider imports in the generic mapping/capability implementation
+
+Remaining before completion:
+- connect capability output to the detector-registry discovery layer introduced by Plan 05
+- finalize authentication-context handling when richer Entra fields are introduced
+- document adapter-authoring conventions for future Okta/AWS/GCP adapters
+
 ## Scope
 - Define canonical concepts: timestamp, actor, actor type, action, target/resource, source IP, application/service, outcome, region, device, authentication context.
 - Define typed capabilities rather than simple field-presence flags.

@@ -27,7 +27,7 @@ def _p95(values: list[int]) -> float:
     if not values:
         return 0.0
     ordered = sorted(values)
-    index = max(0, min(len(ordered) - 1, int(round(0.95 * (len(ordered) - 1)))))
+    index = max(0, min(len(ordered) - 1, round(0.95 * (len(ordered) - 1))))
     return float(ordered[index])
 
 

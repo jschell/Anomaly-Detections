@@ -22,6 +22,8 @@ from sklearn.ensemble import IsolationForest
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+from siem_anomaly.evaluation import ReplayReport
+
 
 @dataclass(frozen=True, slots=True)
 class IsolationForestArtifact:
@@ -206,6 +208,31 @@ def compare_model_to_deterministic(
         model_precision_at_n=model_precision,
         retained=retained,
         reason=reason,
+    )
+
+
+def compare_model_to_replay(
+    scores: pl.DataFrame,
+    report: ReplayReport,
+    *,
+    n: int = 10,
+) -> ModelComparison:
+    """Compare model ranking directly with a known-incident replay report."""
+    precision_by_n = {
+        10: report.metrics.precision_at_10,
+        25: report.metrics.precision_at_25,
+        50: report.metrics.precision_at_50,
+    }
+    if n not in precision_by_n:
+        raise ValueError("n must be one of 10, 25, or 50 for replay comparison")
+    return compare_model_to_deterministic(
+        scores,
+        incident_entities=report.incident.entities,
+        incident_start=report.incident.start,
+        incident_end=report.incident.end,
+        deterministic_rank=report.metrics.incident_rank,
+        deterministic_precision_at_n=precision_by_n[n],
+        n=n,
     )
 
 

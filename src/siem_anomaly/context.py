@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+import polars as pl
+
 from siem_anomaly.adapters.frames import TabularData
 from siem_anomaly.adapters.registry import get_adapter
 from siem_anomaly.core.profile import DataProfile
@@ -34,7 +36,7 @@ class EngagementContext:
     def profile(self, data: TabularData, *, source: str) -> DataProfile:
         return get_adapter(source).profile(data)
 
-    def normalize(self, data: TabularData, *, source: str):
+    def normalize(self, data: TabularData, *, source: str) -> pl.DataFrame:
         return get_adapter(source).normalize(data)
 
     def discover(self, data: TabularData, *, source: str) -> frozenset[str]:

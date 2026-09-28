@@ -67,6 +67,7 @@ def test_aws_cloudtrail_reuses_generic_behavioral_features_and_detectors(tmp_pat
     ids = {finding.detector_id for finding in findings}
     assert "identity.relationship_novelty" in ids
     assert "identity.relationship_change" in ids
+    assert "aws.cloudtrail.notable_action" in ids
 
 
 def test_cross_source_findings_correlate_via_explicit_canonical_identity(tmp_path: Path) -> None:

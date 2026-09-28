@@ -62,12 +62,6 @@ class ReplayReport:
     finding_count: int
 
 
-def _as_utc(value: object) -> datetime:
-    if isinstance(value, datetime):
-        return value.astimezone(UTC)
-    return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(UTC)
-
-
 def _with_timestamp(frame: pl.DataFrame) -> pl.DataFrame:
     return frame.with_columns(
         pl.col("timestamp")

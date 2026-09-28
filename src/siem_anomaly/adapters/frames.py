@@ -1,12 +1,10 @@
 """Normalize supported dataframe/table inputs to Polars."""
 
-from typing import TypeAlias
-
 import pandas as pd
 import polars as pl
 import pyarrow as pa
 
-TabularData: TypeAlias = pd.DataFrame | pl.DataFrame | pa.Table
+type TabularData = pd.DataFrame | pl.DataFrame | pa.Table
 
 
 def to_polars(data: TabularData) -> pl.DataFrame:

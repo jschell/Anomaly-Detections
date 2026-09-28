@@ -201,9 +201,7 @@ def test_volume_deviation_uses_historical_actor_hour_baseline(tmp_path: Path) ->
     findings = ctx.detect(current, source="microsoft.entra_signin", persist=False)
     volume = next(f for f in findings if f.detector_id == "identity.volume_deviation")
     assert volume.reason_codes == ("actor_hour_volume_above_p95",)
-    robust = next(
-        f for f in findings if f.detector_id == "identity.robust_historical_deviation"
-    )
+    robust = next(f for f in findings if f.detector_id == "identity.robust_historical_deviation")
     assert robust.reason_codes == ("actor_hour_robust_deviation",)
     organization = next(
         f for f in findings if f.detector_id == "identity.organization_relative_deviation"

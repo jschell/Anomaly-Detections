@@ -7,6 +7,7 @@ from siem_anomaly.portability.metrics import (
     assess_portability,
     export_approved_summaries,
     leave_one_environment_out,
+    summarize_replay_feature,
 )
 
 __all__ = [
@@ -16,4 +17,5 @@ __all__ = [
     "assess_portability",
     "export_approved_summaries",
     "leave_one_environment_out",
+    "summarize_replay_feature",
 ]

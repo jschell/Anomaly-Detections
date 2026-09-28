@@ -6,7 +6,7 @@ The following plans remain active:
 2. [01 — Persistence Policy and Engagement Storage](01-persistence-policy-and-engagement-storage.md)
 3. [02 — Provider Adapters and Capability Model](02-provider-adapters-and-capability-model.md)
 
-Plans 03–08 are complete and validated.
+Plans 03–10 are complete and validated.
 
 Current implementation status:
 
@@ -18,6 +18,8 @@ Current implementation status:
 - known-incident replay and operational metrics work
 - analyst investigation/evidence lifecycle is enforced
 - Isolation Forest candidates are evaluated against replay metrics before retention
-- rejected ML candidates are deleted automatically and further model escalation is deferred
+- multi-provider adapters exist for Microsoft, Okta, AWS, and GCP
+- canonical entity resolution and cross-source finding correlation work
+- formal feature registry and metrics-only portability research are implemented
 
-Plans 00–02 remain active because their remaining scope includes public API stabilization, engagement policy configuration/lifecycle handling, and adapter documentation/future-source integration.
+Plans 00–02 remain active for residual public API/configuration/documentation cleanup.

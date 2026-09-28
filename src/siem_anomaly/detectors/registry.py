@@ -19,9 +19,7 @@ class DetectorRegistry:
 
     def discover(self, profile: DataProfile) -> tuple[DetectorSpec, ...]:
         return tuple(
-            spec
-            for spec in self.specs
-            if spec.required_capabilities <= profile.capabilities
+            spec for spec in self.specs if spec.required_capabilities <= profile.capabilities
         )
 
 

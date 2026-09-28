@@ -4,6 +4,7 @@ from pathlib import Path
 import polars as pl
 
 from siem_anomaly import open_engagement
+from siem_anomaly.provenance import CoverageWindow
 
 
 def _history() -> pl.DataFrame:
@@ -43,35 +44,66 @@ def test_derive_persists_only_behavioral_state_and_provenance(tmp_path: Path) ->
 
     actor_hour = ctx.features.read_feature("actor_hour", feature_version="identity-v1")
     assert actor_hour.height == 3
+    service_hour = ctx.features.read_feature("service_hour", feature_version="identity-v1")
+    assert service_hour.height == 3
     actor_ip = ctx.features.read_state("actor_ip", feature_version="identity-v1")
     assert actor_ip.height == 1
     assert actor_ip["event_count"].item() == 6
 
 
-def test_coverage_and_missing_windows_support_backfill(tmp_path: Path) -> None:
+def test_coverage_tracks_query_windows_and_empty_results(tmp_path: Path) -> None:
     ctx = open_engagement(tmp_path / "anomaly")
+    first_start = datetime(2026, 9, 1, tzinfo=UTC)
+    first_end = datetime(2026, 9, 22, tzinfo=UTC)
     ctx.derive(
         _history(),
         source="microsoft.entra_signin",
-        query_id="entra-history-2026-09",
+        query_id="entra-history-2026-09-01_2026-09-22",
         feature_version="identity-v1",
+        window_start=first_start,
+        window_end=first_end,
     )
 
-    coverage = ctx.coverage()
-    assert len(coverage) == 1
-    requested_start = datetime(2026, 9, 1, tzinfo=UTC)
-    requested_end = datetime(2026, 9, 28, tzinfo=UTC)
-    missing = ctx.missing_windows(start=requested_start, end=requested_end)
-    assert len(missing) == 2
-    assert missing[0].start == requested_start
-    assert missing[-1].end == requested_end
+    empty = pl.DataFrame(
+        schema={
+            "TimeGenerated": pl.String,
+            "UserPrincipalName": pl.String,
+            "IPAddress": pl.String,
+            "AppDisplayName": pl.String,
+            "ResultType": pl.Int64,
+        }
+    )
+    second_end = datetime(2026, 9, 28, tzinfo=UTC)
+    ctx.derive(
+        empty,
+        source="microsoft.entra_signin",
+        query_id="entra-history-2026-09-22_2026-09-28",
+        feature_version="identity-v1",
+        window_start=first_end,
+        window_end=second_end,
+    )
+
+    assert ctx.coverage() == (CoverageWindow(first_start, second_end),)
+    assert ctx.missing_windows(start=first_start, end=second_end) == ()
 
     completely_missing = ctx.missing_windows(
-        start=requested_start,
-        end=requested_end,
+        start=first_start,
+        end=second_end,
         feature_version="identity-v2",
     )
-    assert completely_missing == ((type(completely_missing[0]))(requested_start, requested_end),)
+    assert completely_missing == (CoverageWindow(first_start, second_end),)
+
+
+def test_repeated_query_id_replaces_same_feature_partition(tmp_path: Path) -> None:
+    ctx = open_engagement(tmp_path / "anomaly")
+    for _ in range(2):
+        ctx.derive(
+            _history(),
+            source="microsoft.entra_signin",
+            query_id="stable-window-id",
+        )
+    assert len(list((ctx.paths.features / "actor_hour").rglob("*.parquet"))) == 1
+    assert len(ctx.manifests.records(feature_set="identity", feature_version="identity-v1")) == 1
 
 
 def test_rebuild_rhythm_and_detect_explainable_findings(tmp_path: Path) -> None:
@@ -107,9 +139,42 @@ def test_rebuild_rhythm_and_detect_explainable_findings(tmp_path: Path) -> None:
         finding for finding in findings if finding.detector_id == "identity.relationship_novelty"
     )
     assert novelty.score == 1.0
+    assert novelty.reason_codes == ("new_actor_source_ip",)
     assert "198.51.100.44" in novelty.reasons[0]
     assert novelty.query_context()["entity"] == "analyst@example.com"
     assert list(ctx.paths.findings.rglob("*.json"))
+
+
+def test_conditional_rarity_is_separate_from_novelty(tmp_path: Path) -> None:
+    ctx = open_engagement(tmp_path / "anomaly")
+    rare_history = pl.DataFrame(
+        {
+            "TimeGenerated": ["2026-09-21T09:00:00Z"],
+            "UserPrincipalName": ["analyst@example.com"],
+            "IPAddress": ["203.0.113.20"],
+            "AppDisplayName": ["Azure Portal"],
+            "ResultType": [0],
+        }
+    )
+    ctx.derive(
+        rare_history,
+        source="microsoft.entra_signin",
+        query_id="rare-ip-history",
+    )
+
+    current = pl.DataFrame(
+        {
+            "TimeGenerated": ["2026-09-28T09:00:00Z"],
+            "UserPrincipalName": ["analyst@example.com"],
+            "IPAddress": ["203.0.113.20"],
+            "AppDisplayName": ["Azure Portal"],
+            "ResultType": [0],
+        }
+    )
+    findings = ctx.detect(current, source="microsoft.entra_signin", persist=False)
+    rarity = next(f for f in findings if f.detector_id == "identity.conditional_rarity")
+    assert rarity.reason_codes == ("rare_actor_source_ip",)
+    assert not any(f.detector_id == "identity.relationship_novelty" for f in findings)
 
 
 def test_volume_deviation_uses_historical_actor_hour_baseline(tmp_path: Path) -> None:
@@ -133,4 +198,5 @@ def test_volume_deviation_uses_historical_actor_hour_baseline(tmp_path: Path) ->
         }
     )
     findings = ctx.detect(current, source="microsoft.entra_signin", persist=False)
-    assert any(f.detector_id == "identity.volume_deviation" for f in findings)
+    volume = next(f for f in findings if f.detector_id == "identity.volume_deviation")
+    assert volume.reason_codes == ("actor_hour_volume_above_p95",)

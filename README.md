@@ -97,4 +97,4 @@ uv run pytest
 
 ## Status
 
-Plans 03–10 are complete. The framework now supports multi-provider behavioral analytics, cross-source finding correlation, known-incident evaluation, controlled evidence retention, gated model evaluation, and metrics-only cross-environment feature-portability research.
+Plans 01 and 03–10 are complete. Engagement evidence behavior is now driven by a versioned, strictly validated `config.yaml`, with temporary-investigation retention and cleanup while ordinary raw-event archival remains prohibited. Plans 00 and 02 remain active for final exit-criteria review.

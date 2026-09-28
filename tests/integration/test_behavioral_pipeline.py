@@ -133,6 +133,7 @@ def test_rebuild_rhythm_and_detect_explainable_findings(tmp_path: Path) -> None:
     findings = ctx.detect(current, source="microsoft.entra_signin", persist=True)
     detector_ids = {finding.detector_id for finding in findings}
     assert "identity.relationship_novelty" in detector_ids
+    assert "identity.relationship_change" in detector_ids
     assert "identity.rhythm_deviation" in detector_ids
 
     novelty = next(
@@ -200,3 +201,11 @@ def test_volume_deviation_uses_historical_actor_hour_baseline(tmp_path: Path) ->
     findings = ctx.detect(current, source="microsoft.entra_signin", persist=False)
     volume = next(f for f in findings if f.detector_id == "identity.volume_deviation")
     assert volume.reason_codes == ("actor_hour_volume_above_p95",)
+    robust = next(
+        f for f in findings if f.detector_id == "identity.robust_historical_deviation"
+    )
+    assert robust.reason_codes == ("actor_hour_robust_deviation",)
+    organization = next(
+        f for f in findings if f.detector_id == "identity.organization_relative_deviation"
+    )
+    assert organization.reason_codes == ("actor_volume_above_organization_p95",)

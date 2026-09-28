@@ -17,6 +17,7 @@ from siem_anomaly.correlation import (
     correlate_findings,
 )
 from siem_anomaly.detectors.identity import detect_identity
+from siem_anomaly.detectors.provider_actions import detect_provider_actions
 from siem_anomaly.detectors.registry import DetectorRegistry, build_default_registry
 from siem_anomaly.evaluation import IncidentDefinition, ReplayReport, replay_known_incident
 from siem_anomaly.feature_catalog import FeatureRegistry, build_core_feature_registry
@@ -178,11 +179,14 @@ class EngagementContext:
         persist: bool = True,
     ) -> tuple[Finding, ...]:
         frame = self.normalize(data, source=source)
-        findings = detect_identity(
-            frame,
-            source=source,
-            repository=self.features,
-            feature_version=feature_version,
+        findings = (
+            *detect_identity(
+                frame,
+                source=source,
+                repository=self.features,
+                feature_version=feature_version,
+            ),
+            *detect_provider_actions(frame, source=source),
         )
         if persist and findings:
             self.findings.write(findings, source=source, token=findings[0].finding_id)

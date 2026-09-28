@@ -5,6 +5,7 @@ import statistics
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from siem_anomaly.evaluation import ReplayReport
 from siem_anomaly.feature_catalog import PortabilityExpectation
 
 
@@ -40,6 +41,33 @@ class LeaveOneEnvironmentOutResult:
     training_recall_median: float
     held_out_recall: float
     generalizes: bool
+
+
+def summarize_replay_feature(
+    report: ReplayReport,
+    *,
+    environment_id: str,
+    feature_id: str,
+    effect_key: str,
+    rank_contribution: float,
+    ablation_delta: float,
+    approved_for_export: bool = False,
+) -> EnvironmentFeatureMetrics:
+    """Convert a replay result into a metrics-only feature summary."""
+    false_positive_rate = (
+        report.metrics.false_positives / report.finding_count if report.finding_count else 0.0
+    )
+    return EnvironmentFeatureMetrics(
+        environment_id=environment_id,
+        feature_id=feature_id,
+        effect_size=report.effect_sizes.get(effect_key, 0.0),
+        incident_recall=report.metrics.recall_at_25,
+        precision_at_25=report.metrics.precision_at_25,
+        false_positive_rate=false_positive_rate,
+        rank_contribution=rank_contribution,
+        ablation_delta=ablation_delta,
+        approved_for_export=approved_for_export,
+    )
 
 
 def assess_portability(

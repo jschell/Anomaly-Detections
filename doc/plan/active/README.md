@@ -3,23 +3,10 @@
 The following plans remain active:
 
 1. [00 — Foundation and Package Structure](00-foundation-and-package-structure.md)
-2. [01 — Persistence Policy and Engagement Storage](01-persistence-policy-and-engagement-storage.md)
-3. [02 — Provider Adapters and Capability Model](02-provider-adapters-and-capability-model.md)
+2. [02 — Provider Adapters and Capability Model](02-provider-adapters-and-capability-model.md)
 
-Plans 03–10 are complete and validated.
+Plans 01 and 03–10 are complete and validated.
 
-Current implementation status:
+Plan 01 now includes a versioned engagement config, strict policy validation, configurable investigation-evidence retention, protected confirmed-incident evidence, policy inspection, and expiration cleanup.
 
-- frozen `uv.lock` CI is green
-- typed package/import path is established
-- engagement persistence policy is enforced
-- behavioral backfill, provenance, coverage, and rhythm baselines work
-- explainable detectors and persisted findings work
-- known-incident replay and operational metrics work
-- analyst investigation/evidence lifecycle is enforced
-- Isolation Forest candidates are evaluated against replay metrics before retention
-- multi-provider adapters exist for Microsoft, Okta, AWS, and GCP
-- canonical entity resolution and cross-source finding correlation work
-- formal feature registry and metrics-only portability research are implemented
-
-Plans 00–02 remain active for residual public API/configuration/documentation cleanup.
+Plans 00 and 02 remain active pending final exit-criteria review and closure.

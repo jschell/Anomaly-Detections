@@ -11,8 +11,11 @@ from siem_anomaly.core.profile import DataProfile
 
 
 class SourceAdapter(Protocol):
-    source_id: str
-    bindings: tuple[FieldBinding, ...]
+    @property
+    def source_id(self) -> str: ...
+
+    @property
+    def bindings(self) -> tuple[FieldBinding, ...]: ...
 
     def normalize(self, data: TabularData) -> pl.DataFrame: ...
 

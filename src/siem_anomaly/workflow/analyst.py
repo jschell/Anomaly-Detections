@@ -3,7 +3,7 @@
 import json
 import shutil
 from dataclasses import asdict, dataclass, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
 from typing import cast
@@ -88,7 +88,11 @@ class AnalystWorkflow:
             )
         if not selection_reason.strip():
             raise ValueError("selection_reason must not be empty")
-        self.policy.assert_allowed(ArtifactKind.INCIDENT_EVIDENCE, explicit_incident=True)
+        self.policy.assert_allowed(
+            ArtifactKind.INCIDENT_EVIDENCE,
+            explicit_incident=True,
+            investigating=record.state is FindingState.INVESTIGATING,
+        )
         root = (
             self.incidents_root / record.incident_id
             if record.state is FindingState.INCIDENT and record.incident_id is not None
@@ -166,6 +170,32 @@ class AnalystWorkflow:
         archive.mkdir(parents=True, exist_ok=True)
         self._write_json(archive / f"{record.investigation_id}.json", updated)
         return updated
+
+    def cleanup_expired_investigations(
+        self,
+        *,
+        now: datetime | None = None,
+    ) -> tuple[str, ...]:
+        """Remove expired active investigation evidence; confirmed incidents are untouched."""
+        current = (now or datetime.now(UTC)).astimezone(UTC)
+        cutoff = current - timedelta(days=self.policy.investigating_retention_days)
+        removed: list[str] = []
+        if not self.investigations_root.exists():
+            return ()
+        for root in self.investigations_root.iterdir():
+            if not root.is_dir() or root.name.startswith("_"):
+                continue
+            workflow_path = root / "workflow.json"
+            if not workflow_path.exists():
+                continue
+            record = self._read_json(workflow_path)
+            if record.state is not FindingState.INVESTIGATING:
+                continue
+            if record.updated_at.astimezone(UTC) > cutoff:
+                continue
+            shutil.rmtree(root)
+            removed.append(record.investigation_id)
+        return tuple(sorted(removed))
 
     def load(self, investigation_id: str) -> InvestigationRecord:
         active = self.investigations_root / investigation_id / "workflow.json"

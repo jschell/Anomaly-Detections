@@ -28,9 +28,16 @@ def test_generic_mapping_adapter_uses_same_capability_logic() -> None:
         source_id="example.auth",
         bindings=(
             FieldBinding("timestamp", "ts", Capability.TIMESTAMP, "event_time", True),
-            FieldBinding("actor", "principal", Capability.ACTOR, "authenticated_principal", True),
+            FieldBinding(
+                "actor",
+                "principal",
+                Capability.ACTOR,
+                "authenticated_principal",
+                True,
+            ),
             FieldBinding("source_ip", "client_ip", Capability.SOURCE_IP, "client_origin"),
         ),
     )
-    profile = adapter.profile(pl.DataFrame({"ts": ["now"], "principal": ["u"], "client_ip": ["1.2.3.4"]}))
+    frame = pl.DataFrame({"ts": ["now"], "principal": ["u"], "client_ip": ["1.2.3.4"]})
+    profile = adapter.profile(frame)
     assert {Capability.TIMESTAMP, Capability.ACTOR, Capability.SOURCE_IP} <= profile.capabilities

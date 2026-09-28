@@ -4,8 +4,8 @@ from pathlib import Path
 import polars as pl
 
 from siem_anomaly import open_engagement
-from siem_anomaly.correlation import AliasBinding, EntityResolver, FindingObservation
 from siem_anomaly.core.domain import Finding
+from siem_anomaly.correlation import AliasBinding, EntityResolver, FindingObservation
 
 
 def test_okta_reuses_generic_identity_detector_discovery(tmp_path: Path) -> None:

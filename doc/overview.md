@@ -90,4 +90,4 @@ Raw customer telemetry and detailed relationship stores are never combined for c
 
 `doc/plan/active/` contains work still in progress, `complete/` contains validated plans, and `queue/` contains future plans.
 
-Plans 03–10 are complete. Plans 00–02 remain active for residual foundation/configuration cleanup.
+Plans 00–10 are complete and validated. There are currently no active or queued roadmap plans.

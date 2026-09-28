@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
+from typing import cast
 
 from siem_anomaly.adapters.frames import TabularData, to_polars
 from siem_anomaly.core.domain import Finding
@@ -203,7 +204,11 @@ class AnalystWorkflow:
     def _read_json(path: Path) -> InvestigationRecord:
         payload: dict[str, object] = json.loads(path.read_text(encoding="utf-8"))
         notes_value = payload.get("notes")
-        notes = tuple(str(item) for item in notes_value) if isinstance(notes_value, list) else ()
+        notes = (
+            tuple(str(item) for item in cast(list[object], notes_value))
+            if isinstance(notes_value, list)
+            else ()
+        )
         return InvestigationRecord(
             investigation_id=str(payload["investigation_id"]),
             finding_id=str(payload["finding_id"]),

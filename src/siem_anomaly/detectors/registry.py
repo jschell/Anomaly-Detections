@@ -24,27 +24,44 @@ class DetectorRegistry:
 
 
 def build_default_registry() -> DetectorRegistry:
+    actor_ip = frozenset({Capability.ACTOR, Capability.SOURCE_IP})
+    actor_time = frozenset({Capability.ACTOR, Capability.TIMESTAMP})
     return DetectorRegistry(
         specs=(
             DetectorSpec(
                 "identity.relationship_novelty",
-                frozenset({Capability.ACTOR, Capability.SOURCE_IP}),
+                actor_ip,
                 "Actor/source-IP relationship not present in historical state.",
             ),
             DetectorSpec(
                 "identity.conditional_rarity",
-                frozenset({Capability.ACTOR, Capability.SOURCE_IP}),
+                actor_ip,
                 "Actor/source-IP relationship is historically rare.",
             ),
             DetectorSpec(
+                "identity.relationship_change",
+                actor_ip,
+                "Established actor forms a new source-IP relationship.",
+            ),
+            DetectorSpec(
                 "identity.rhythm_deviation",
-                frozenset({Capability.ACTOR, Capability.TIMESTAMP}),
+                actor_time,
                 "Actor activity occurs outside established hour/weekday rhythm.",
             ),
             DetectorSpec(
                 "identity.volume_deviation",
-                frozenset({Capability.ACTOR, Capability.TIMESTAMP}),
-                "Actor hourly volume exceeds its historical rhythm baseline.",
+                actor_time,
+                "Actor hourly volume exceeds its historical p95 baseline.",
+            ),
+            DetectorSpec(
+                "identity.robust_historical_deviation",
+                actor_time,
+                "Actor hourly volume deviates strongly from median/MAD history.",
+            ),
+            DetectorSpec(
+                "identity.organization_relative_deviation",
+                actor_time,
+                "Actor volume is extreme relative to organization peers at that time.",
             ),
         )
     )

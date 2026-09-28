@@ -4,7 +4,8 @@ from pathlib import Path
 import polars as pl
 
 from siem_anomaly import open_engagement
-from siem_anomaly.models import compare_model_to_deterministic
+from siem_anomaly.evaluation import IncidentDefinition
+from siem_anomaly.models import compare_model_to_deterministic, compare_model_to_replay
 from siem_anomaly.models.time_series import random_cut_forest_decision
 
 
@@ -105,8 +106,9 @@ def test_isolation_forest_is_versioned_scored_and_gated_by_incremental_value(
 
 def test_rejected_candidate_is_deleted_and_model_escalation_stops(tmp_path: Path) -> None:
     ctx = open_engagement(tmp_path / "anomaly")
+    training = _training_events()
     ctx.derive(
-        _training_events(),
+        training,
         source="microsoft.entra_signin",
         query_id="training-window",
     )
@@ -114,21 +116,41 @@ def test_rejected_candidate_is_deleted_and_model_escalation_stops(tmp_path: Path
         model_id="iforest-rejected",
         contamination=0.05,
     )
-    scores = pl.DataFrame(
+
+    anomaly_time = datetime(2026, 9, 28, 9, tzinfo=UTC)
+    current = pl.DataFrame(
         {
-            "actor": ["control@example.com"],
-            "window": [datetime(2026, 9, 28, 9, tzinfo=UTC)],
-            "anomaly_score": [0.1],
+            "TimeGenerated": [
+                (anomaly_time + timedelta(minutes=i)).isoformat().replace("+00:00", "Z")
+                for i in range(25)
+            ]
+            + ["2026-09-28T09:00:00Z"],
+            "UserPrincipalName": ["incident@example.com"] * 25 + ["user1@example.com"],
+            "IPAddress": ["198.51.100.9"] * 25 + ["192.0.2.2"],
+            "AppDisplayName": ["Azure Portal"] * 26,
+            "ResultType": [0] * 26,
         }
     )
-    comparison = compare_model_to_deterministic(
-        scores,
-        incident_entities=("incident@example.com",),
-        incident_start=datetime(2026, 9, 28, 9, tzinfo=UTC),
-        incident_end=datetime(2026, 9, 28, 10, tzinfo=UTC),
-        deterministic_rank=1,
-        deterministic_precision_at_n=1.0,
+    incident = IncidentDefinition(
+        incident_id="MODEL-IR-001",
+        source="microsoft.entra_signin",
+        start=anomaly_time,
+        end=anomaly_time + timedelta(hours=1),
+        entities=("incident@example.com",),
     )
+    replay = ctx.replay(
+        baseline_data=training,
+        replay_data=current,
+        incident=incident,
+    )
+    scores = ctx.score_isolation_forest(
+        current,
+        source="microsoft.entra_signin",
+        artifact=artifact,
+    )
+    comparison = compare_model_to_replay(scores, replay, n=10)
+
+    assert replay.metrics.incident_rank == 1
     assert not comparison.retained
     assert ctx.finalize_isolation_forest(artifact, comparison) is None
     assert not artifact.model_path.parent.exists()

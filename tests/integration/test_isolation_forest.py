@@ -91,9 +91,10 @@ def test_isolation_forest_is_versioned_scored_and_gated_by_incremental_value(
     )
     assert comparison.model_rank is not None
     assert comparison.retained
-    assert random_cut_forest_decision(
-        isolation_forest_retained=comparison.retained
-    ).status == "candidate"
+    assert (
+        random_cut_forest_decision(isolation_forest_retained=comparison.retained).status
+        == "candidate"
+    )
 
 
 def test_model_escalation_stops_without_incremental_value() -> None:

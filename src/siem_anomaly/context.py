@@ -10,10 +10,17 @@ from siem_anomaly.adapters.frames import TabularData
 from siem_anomaly.adapters.registry import get_adapter
 from siem_anomaly.core.domain import Finding
 from siem_anomaly.core.profile import DataProfile
+from siem_anomaly.correlation import (
+    CorrelatedFindingGroup,
+    EntityResolver,
+    FindingObservation,
+    correlate_findings,
+)
 from siem_anomaly.detectors.identity import detect_identity
 from siem_anomaly.detectors.registry import DetectorRegistry, build_default_registry
 from siem_anomaly.evaluation import IncidentDefinition, ReplayReport, replay_known_incident
 from siem_anomaly.features.identity import derive_identity_features
+from siem_anomaly.feature_catalog import FeatureRegistry, build_core_feature_registry
 from siem_anomaly.features.store import FeatureRepository
 from siem_anomaly.findings import FindingStore
 from siem_anomaly.incidents import IncidentEvidenceStore
@@ -43,6 +50,7 @@ class EngagementContext:
     findings: FindingStore
     incidents: IncidentEvidenceStore
     workflow: AnalystWorkflow
+    feature_registry: FeatureRegistry
 
     @classmethod
     def open(cls, root: str | Path) -> "EngagementContext":
@@ -62,6 +70,7 @@ class EngagementContext:
             findings=FindingStore(paths.findings, policy),
             incidents=IncidentEvidenceStore(paths.incidents, policy),
             workflow=AnalystWorkflow(paths.investigations, paths.incidents, policy),
+            feature_registry=build_core_feature_registry(),
         )
 
     def profile(self, data: TabularData, *, source: str) -> DataProfile:
@@ -178,6 +187,14 @@ class EngagementContext:
         if persist and findings:
             self.findings.write(findings, source=source, token=findings[0].finding_id)
         return findings
+
+    def correlate(
+        self,
+        observations: tuple[FindingObservation, ...],
+        *,
+        resolver: EntityResolver,
+    ) -> tuple[CorrelatedFindingGroup, ...]:
+        return correlate_findings(observations, resolver=resolver)
 
     def replay(
         self,

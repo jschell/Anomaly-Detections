@@ -37,6 +37,10 @@ class EngagementPaths:
         return self.root / "evaluation"
 
     @property
+    def investigations(self) -> Path:
+        return self.root / "investigations"
+
+    @property
     def incidents(self) -> Path:
         return self.root / "incidents"
 
@@ -49,6 +53,7 @@ class EngagementPaths:
             self.models,
             self.findings,
             self.evaluation,
+            self.investigations,
             self.incidents,
         ):
             path.mkdir(parents=True, exist_ok=True)

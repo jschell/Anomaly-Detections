@@ -26,7 +26,7 @@ class ManifestRecord:
     derived_rows: int
     adapter_version: str
     framework_version: str
-    overlap_strategy: str = "aggregate_then_rebuild"
+    overlap_strategy: str = "idempotent_query_partition_then_rebuild"
 
     @classmethod
     def create(
@@ -93,7 +93,7 @@ class ManifestStore:
                 derived_rows=int(str(payload["derived_rows"])),
                 adapter_version=str(payload["adapter_version"]),
                 framework_version=str(payload["framework_version"]),
-                overlap_strategy=str(payload.get("overlap_strategy", "aggregate_then_rebuild")),
+                overlap_strategy=str(payload.get("overlap_strategy", "idempotent_query_partition_then_rebuild")),
             )
             if feature_set is not None and record.feature_set != feature_set:
                 continue

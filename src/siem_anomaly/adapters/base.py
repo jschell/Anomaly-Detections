@@ -6,7 +6,7 @@ from typing import Protocol
 import polars as pl
 
 from siem_anomaly.adapters.frames import TabularData, to_polars
-from siem_anomaly.core.capabilities import Capability, FieldBinding
+from siem_anomaly.core.capabilities import FieldBinding
 from siem_anomaly.core.profile import DataProfile
 
 

@@ -80,13 +80,20 @@ class ManifestStore:
     ) -> tuple[ManifestRecord, ...]:
         records: list[ManifestRecord] = []
         for path in sorted(self.root.glob("*.json")):
-            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload: dict[str, object] = json.loads(path.read_text(encoding="utf-8"))
             record = ManifestRecord(
-                **{
-                    **payload,
-                    "start": datetime.fromisoformat(payload["start"]),
-                    "end": datetime.fromisoformat(payload["end"]),
-                }
+                feature_set=str(payload["feature_set"]),
+                feature_version=str(payload["feature_version"]),
+                source=str(payload["source"]),
+                query_id=str(payload["query_id"]),
+                query_hash=str(payload["query_hash"]),
+                start=datetime.fromisoformat(str(payload["start"])),
+                end=datetime.fromisoformat(str(payload["end"])),
+                source_rows=int(str(payload["source_rows"])),
+                derived_rows=int(str(payload["derived_rows"])),
+                adapter_version=str(payload["adapter_version"]),
+                framework_version=str(payload["framework_version"]),
+                overlap_strategy=str(payload.get("overlap_strategy", "aggregate_then_rebuild")),
             )
             if feature_set is not None and record.feature_set != feature_set:
                 continue

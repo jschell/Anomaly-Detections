@@ -212,7 +212,11 @@ def replay_known_incident(
         ablation[detector_id] = _incident_rank(without, incident)
 
     controls = _matched_controls(baseline, incident)
-    effect_input = pl.concat([replay, controls], how="diagonal_relaxed") if not controls.is_empty() else replay
+    effect_input = (
+        pl.concat([replay, controls], how="diagonal_relaxed")
+        if not controls.is_empty()
+        else replay
+    )
 
     report = ReplayReport(
         incident=incident,
@@ -226,7 +230,9 @@ def replay_known_incident(
             recall_at_50=_recall_at(ranked, incident, 50),
             false_positives=len(negatives),
             time_to_first_signal_seconds=(
-                (first_signal - incident.start).total_seconds() if first_signal is not None else None
+                (first_signal - incident.start).total_seconds()
+                if first_signal is not None
+                else None
             ),
         ),
         detector_contribution=dict(detector_contribution),

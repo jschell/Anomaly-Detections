@@ -75,6 +75,7 @@ def detect_identity(
                         end=end,
                         score=1.0,
                         entity=actor,
+                        reason_codes=("new_actor_source_ip",),
                         reasons=(f"source IP {source_ip} not seen in historical actor/IP state",),
                     )
                 )
@@ -93,6 +94,7 @@ def detect_identity(
                         end=end,
                         score=1.0 / (count + 1),
                         entity=actor,
+                        reason_codes=("rare_actor_source_ip",),
                         reasons=(f"source IP {source_ip} observed only {count} historical events",),
                     )
                 )
@@ -145,6 +147,7 @@ def detect_identity(
                     end=window,
                     score=1.0,
                     entity=actor,
+                    reason_codes=("unseen_actor_weekday_hour",),
                     reasons=("activity occurred in an unseen weekday/hour baseline bucket",),
                 )
             )
@@ -162,9 +165,8 @@ def detect_identity(
                     end=window,
                     score=score,
                     entity=actor,
-                    reasons=(
-                        f"hourly event count {count} exceeds historical p95 {p95:.2f}",
-                    ),
+                    reason_codes=("actor_hour_volume_above_p95",),
+                    reasons=(f"hourly event count {count} exceeds historical p95 {p95:.2f}",),
                 )
             )
     return tuple(sorted(findings, key=lambda item: item.finding_id))

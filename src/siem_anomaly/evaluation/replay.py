@@ -133,12 +133,10 @@ def _feature_effect_sizes(
     effects: dict[str, float] = {}
     for column in numeric:
         incident_values = [
-            float(value)
-            for value in incident_rows.get_column(column).drop_nulls().to_list()
+            float(value) for value in incident_rows.get_column(column).drop_nulls().to_list()
         ]
         control_values = [
-            float(value)
-            for value in control_rows.get_column(column).drop_nulls().to_list()
+            float(value) for value in control_rows.get_column(column).drop_nulls().to_list()
         ]
         effects[column] = _effect_size(incident_values, control_values)
     return effects
@@ -213,9 +211,7 @@ def replay_known_incident(
 
     controls = _matched_controls(baseline, incident)
     effect_input = (
-        pl.concat([replay, controls], how="diagonal_relaxed")
-        if not controls.is_empty()
-        else replay
+        pl.concat([replay, controls], how="diagonal_relaxed") if not controls.is_empty() else replay
     )
 
     report = ReplayReport(

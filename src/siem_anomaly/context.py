@@ -11,6 +11,7 @@ from siem_anomaly.core.profile import DataProfile
 from siem_anomaly.incidents import IncidentEvidenceStore
 from siem_anomaly.persistence.layout import EngagementPaths
 from siem_anomaly.persistence.policy import PersistencePolicy
+from siem_anomaly.persistence.stores import EngagementStores
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,6 +19,7 @@ class EngagementContext:
     root: Path
     paths: EngagementPaths
     policy: PersistencePolicy
+    stores: EngagementStores
     incidents: IncidentEvidenceStore
 
     @classmethod
@@ -30,6 +32,7 @@ class EngagementContext:
             root=root_path,
             paths=paths,
             policy=policy,
+            stores=EngagementStores.create(paths=paths, policy=policy),
             incidents=IncidentEvidenceStore(paths.incidents, policy),
         )
 

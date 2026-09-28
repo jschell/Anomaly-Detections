@@ -75,8 +75,8 @@ def correlate_findings(
                     candidate_entity = _canonical_entity(candidate, resolver)
                     member_entity = _canonical_entity(member, resolver)
                     same_entity = candidate_entity is not None and candidate_entity == member_entity
-                    shared = _shared_dimensions(candidate, member)
-                    if same_entity or shared:
+                    pair_dimensions = _shared_dimensions(candidate, member)
+                    if same_entity or pair_dimensions:
                         members.add(candidate_index)
                         unused.remove(candidate_index)
                         changed = True
@@ -96,10 +96,10 @@ def correlate_findings(
                 }
             )
         )
-        shared: set[str] = set()
+        shared_dimensions: set[str] = set()
         for left_index, left in enumerate(selected):
             for right in selected[left_index + 1 :]:
-                shared.update(_shared_dimensions(left, right))
+                shared_dimensions.update(_shared_dimensions(left, right))
         start = min(item.finding.start for item in selected)
         end = max(item.finding.end for item in selected)
         digest = hashlib.sha256("|".join(finding_ids).encode()).hexdigest()[:20]
@@ -109,7 +109,7 @@ def correlate_findings(
                 finding_ids=finding_ids,
                 sources=sources,
                 canonical_entities=entities,
-                shared_dimensions=tuple(sorted(shared)),
+                shared_dimensions=tuple(sorted(shared_dimensions)),
                 start=start.isoformat(),
                 end=end.isoformat(),
             )

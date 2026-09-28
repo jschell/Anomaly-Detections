@@ -53,4 +53,15 @@ class Finding:
     end: datetime
     score: float
     entity: str | None = None
+    reason_codes: tuple[str, ...] = ()
     reasons: tuple[str, ...] = ()
+
+    def query_context(self) -> dict[str, str]:
+        context = {
+            "source": self.source,
+            "start": self.start.isoformat(),
+            "end": self.end.isoformat(),
+        }
+        if self.entity is not None:
+            context["entity"] = self.entity
+        return context

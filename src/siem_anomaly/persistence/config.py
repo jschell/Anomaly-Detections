@@ -1,9 +1,13 @@
-"""Versioned engagement policy configuration."""
+"""Versioned engagement policy configuration.
 
+JSON is emitted into config.yaml. JSON is valid YAML 1.2, which keeps the
+configuration human-readable without adding a runtime YAML dependency.
+"""
+
+import json
 from pathlib import Path
 from typing import Literal
 
-import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -44,11 +48,11 @@ def load_or_create_config(path: Path) -> EngagementConfig:
         config = default_config()
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
-            yaml.safe_dump(config.model_dump(mode="json"), sort_keys=False),
+            json.dumps(config.model_dump(mode="json"), indent=2, sort_keys=False) + "\n",
             encoding="utf-8",
         )
         return config
-    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
-        raise ValueError("Engagement config must contain a YAML mapping")
+        raise ValueError("Engagement config must contain a mapping")
     return EngagementConfig.model_validate(payload)

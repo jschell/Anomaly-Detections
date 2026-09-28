@@ -1,6 +1,8 @@
 """Initial explainable identity detectors."""
 
 import hashlib
+import statistics
+from collections import defaultdict
 from datetime import UTC, datetime
 
 import polars as pl
@@ -21,6 +23,113 @@ def _to_datetime(value: object) -> datetime:
     return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(UTC)
 
 
+def _p95(values: list[int]) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    index = max(0, min(len(ordered) - 1, int(round(0.95 * (len(ordered) - 1)))))
+    return float(ordered[index])
+
+
+def _append_relationship_findings(
+    *,
+    current: pl.DataFrame,
+    history: pl.DataFrame,
+    frame: pl.DataFrame,
+    source: str,
+    findings: list[Finding],
+) -> None:
+    if current.is_empty():
+        return
+    history_pairs: dict[tuple[str, str], int] = {}
+    if not history.is_empty():
+        rolled = history.group_by(["actor", "source_ip"]).agg(
+            pl.col("event_count").sum().alias("event_count")
+        )
+        history_pairs = {
+            (str(row["actor"]), str(row["source_ip"])): int(row["event_count"])
+            for row in rolled.iter_rows(named=True)
+        }
+    historical_actors = {actor for actor, _ in history_pairs}
+    event_times = (
+        frame.with_columns(
+            pl.col("timestamp")
+            .cast(pl.Utf8)
+            .str.to_datetime(strict=False, time_zone="UTC")
+            .alias("_ts")
+        )
+        .drop_nulls(["_ts"])
+        .select(pl.col("_ts").min().alias("start"), pl.col("_ts").max().alias("end"))
+        .row(0, named=True)
+    )
+    start = _to_datetime(event_times["start"])
+    end = _to_datetime(event_times["end"])
+
+    for row in current.iter_rows(named=True):
+        actor = str(row["actor"])
+        source_ip = str(row["source_ip"])
+        count = history_pairs.get((actor, source_ip))
+        if count is None:
+            findings.append(
+                Finding(
+                    finding_id=_finding_id(
+                        "identity.relationship_novelty",
+                        actor,
+                        start,
+                        source_ip,
+                    ),
+                    detector_id="identity.relationship_novelty",
+                    source=source,
+                    start=start,
+                    end=end,
+                    score=1.0,
+                    entity=actor,
+                    reason_codes=("new_actor_source_ip",),
+                    reasons=(f"source IP {source_ip} not seen in historical actor/IP state",),
+                )
+            )
+            if actor in historical_actors:
+                findings.append(
+                    Finding(
+                        finding_id=_finding_id(
+                            "identity.relationship_change",
+                            actor,
+                            start,
+                            source_ip,
+                        ),
+                        detector_id="identity.relationship_change",
+                        source=source,
+                        start=start,
+                        end=end,
+                        score=0.8,
+                        entity=actor,
+                        reason_codes=("established_actor_new_source_ip",),
+                        reasons=(
+                            f"established actor shifted to previously unseen source IP {source_ip}",
+                        ),
+                    )
+                )
+        elif count <= 2:
+            findings.append(
+                Finding(
+                    finding_id=_finding_id(
+                        "identity.conditional_rarity",
+                        actor,
+                        start,
+                        source_ip,
+                    ),
+                    detector_id="identity.conditional_rarity",
+                    source=source,
+                    start=start,
+                    end=end,
+                    score=1.0 / (count + 1),
+                    entity=actor,
+                    reason_codes=("rare_actor_source_ip",),
+                    reasons=(f"source IP {source_ip} observed only {count} historical events",),
+                )
+            )
+
+
 def detect_identity(
     frame: pl.DataFrame,
     *,
@@ -32,72 +141,13 @@ def detect_identity(
     findings: list[Finding] = []
 
     history_ip = repository.read_state("actor_ip", feature_version=feature_version)
-    if not current.actor_ip.is_empty():
-        history_pairs: dict[tuple[str, str], int] = {}
-        if not history_ip.is_empty():
-            rolled = history_ip.group_by(["actor", "source_ip"]).agg(
-                pl.col("event_count").sum().alias("event_count")
-            )
-            history_pairs = {
-                (str(row["actor"]), str(row["source_ip"])): int(row["event_count"])
-                for row in rolled.iter_rows(named=True)
-            }
-        event_times = (
-            frame.with_columns(
-                pl.col("timestamp")
-                .cast(pl.Utf8)
-                .str.to_datetime(strict=False, time_zone="UTC")
-                .alias("_ts")
-            )
-            .drop_nulls(["_ts"])
-            .select(pl.col("_ts").min().alias("start"), pl.col("_ts").max().alias("end"))
-            .row(0, named=True)
-        )
-        start = _to_datetime(event_times["start"])
-        end = _to_datetime(event_times["end"])
-        for row in current.actor_ip.iter_rows(named=True):
-            actor = str(row["actor"])
-            source_ip = str(row["source_ip"])
-            key = (actor, source_ip)
-            count = history_pairs.get(key)
-            if count is None:
-                findings.append(
-                    Finding(
-                        finding_id=_finding_id(
-                            "identity.relationship_novelty",
-                            actor,
-                            start,
-                            source_ip,
-                        ),
-                        detector_id="identity.relationship_novelty",
-                        source=source,
-                        start=start,
-                        end=end,
-                        score=1.0,
-                        entity=actor,
-                        reason_codes=("new_actor_source_ip",),
-                        reasons=(f"source IP {source_ip} not seen in historical actor/IP state",),
-                    )
-                )
-            elif count <= 2:
-                findings.append(
-                    Finding(
-                        finding_id=_finding_id(
-                            "identity.conditional_rarity",
-                            actor,
-                            start,
-                            source_ip,
-                        ),
-                        detector_id="identity.conditional_rarity",
-                        source=source,
-                        start=start,
-                        end=end,
-                        score=1.0 / (count + 1),
-                        entity=actor,
-                        reason_codes=("rare_actor_source_ip",),
-                        reasons=(f"source IP {source_ip} observed only {count} historical events",),
-                    )
-                )
+    _append_relationship_findings(
+        current=current.actor_ip,
+        history=history_ip,
+        frame=frame,
+        source=source,
+        findings=findings,
+    )
 
     historical_actor_hour = repository.read_feature(
         "actor_hour",
@@ -112,19 +162,15 @@ def detect_identity(
             pl.col("window").dt.hour().alias("hour"),
         ]
     )
-    rhythm = historical.group_by(["actor", "weekday", "hour"]).agg(
-        [
-            pl.col("event_count").median().alias("median_events"),
-            pl.col("event_count").quantile(0.95).alias("p95_events"),
-        ]
-    )
-    rhythm_map = {
-        (str(row["actor"]), int(row["weekday"]), int(row["hour"])): (
-            float(row["median_events"]),
-            float(row["p95_events"]),
-        )
-        for row in rhythm.iter_rows(named=True)
-    }
+    actor_values: dict[tuple[str, int, int], list[int]] = defaultdict(list)
+    organization_values: dict[tuple[int, int], list[int]] = defaultdict(list)
+    for row in historical.iter_rows(named=True):
+        actor = str(row["actor"])
+        weekday = int(row["weekday"])
+        hour = int(row["hour"])
+        count = int(row["event_count"])
+        actor_values[(actor, weekday, hour)].append(count)
+        organization_values[(weekday, hour)].append(count)
 
     current_enriched = current.actor_hour.with_columns(
         [
@@ -135,9 +181,12 @@ def detect_identity(
     for row in current_enriched.iter_rows(named=True):
         actor = str(row["actor"])
         window = _to_datetime(row["window"])
-        key = (actor, int(row["weekday"]), int(row["hour"]))
-        baseline = rhythm_map.get(key)
-        if baseline is None:
+        weekday = int(row["weekday"])
+        hour = int(row["hour"])
+        count = int(row["event_count"])
+        values = actor_values.get((actor, weekday, hour))
+
+        if not values:
             findings.append(
                 Finding(
                     finding_id=_finding_id("identity.rhythm_deviation", actor, window, "hour"),
@@ -151,22 +200,84 @@ def detect_identity(
                     reasons=("activity occurred in an unseen weekday/hour baseline bucket",),
                 )
             )
-            continue
-        median, p95 = baseline
-        count = int(row["event_count"])
-        if count > max(p95, median * 2.0, 1.0):
-            score = min(1.0, count / max(p95, 1.0) / 4.0)
+        else:
+            median = float(statistics.median(values))
+            p95 = _p95(values)
+            if count > max(p95, median * 2.0, 1.0):
+                score = min(1.0, count / max(p95, 1.0) / 4.0)
+                findings.append(
+                    Finding(
+                        finding_id=_finding_id(
+                            "identity.volume_deviation",
+                            actor,
+                            window,
+                            str(count),
+                        ),
+                        detector_id="identity.volume_deviation",
+                        source=source,
+                        start=window,
+                        end=window,
+                        score=score,
+                        entity=actor,
+                        reason_codes=("actor_hour_volume_above_p95",),
+                        reasons=(
+                            f"hourly event count {count} exceeds historical p95 {p95:.2f}",
+                        ),
+                    )
+                )
+
+            deviations = [abs(value - median) for value in values]
+            mad = float(statistics.median(deviations))
+            robust_score = (
+                abs(count - median) / (1.4826 * mad)
+                if mad > 0
+                else (4.0 if count > max(median * 2.0, median + 1.0) else 0.0)
+            )
+            if robust_score >= 3.5:
+                findings.append(
+                    Finding(
+                        finding_id=_finding_id(
+                            "identity.robust_historical_deviation",
+                            actor,
+                            window,
+                            str(count),
+                        ),
+                        detector_id="identity.robust_historical_deviation",
+                        source=source,
+                        start=window,
+                        end=window,
+                        score=min(1.0, robust_score / 8.0),
+                        entity=actor,
+                        reason_codes=("actor_hour_robust_deviation",),
+                        reasons=(
+                            f"hourly volume robust deviation score is {robust_score:.2f}",
+                        ),
+                    )
+                )
+
+        organization = organization_values.get((weekday, hour), [])
+        organization_p95 = _p95(organization)
+        if organization and count > max(organization_p95 * 2.0, organization_p95 + 1.0):
             findings.append(
                 Finding(
-                    finding_id=_finding_id("identity.volume_deviation", actor, window, str(count)),
-                    detector_id="identity.volume_deviation",
+                    finding_id=_finding_id(
+                        "identity.organization_relative_deviation",
+                        actor,
+                        window,
+                        str(count),
+                    ),
+                    detector_id="identity.organization_relative_deviation",
                     source=source,
                     start=window,
                     end=window,
-                    score=score,
+                    score=min(1.0, count / max(organization_p95, 1.0) / 4.0),
                     entity=actor,
-                    reason_codes=("actor_hour_volume_above_p95",),
-                    reasons=(f"hourly event count {count} exceeds historical p95 {p95:.2f}",),
+                    reason_codes=("actor_volume_above_organization_p95",),
+                    reasons=(
+                        f"actor hourly count {count} exceeds organization p95 "
+                        f"{organization_p95:.2f}",
+                    ),
                 )
             )
+
     return tuple(sorted(findings, key=lambda item: item.finding_id))

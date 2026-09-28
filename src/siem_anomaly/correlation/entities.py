@@ -50,8 +50,6 @@ class EntityResolver:
 
     def entity(self, canonical_id: str) -> CanonicalEntity:
         aliases = tuple(
-            binding
-            for binding in self._bindings.values()
-            if binding.canonical_id == canonical_id
+            binding for binding in self._bindings.values() if binding.canonical_id == canonical_id
         )
         return CanonicalEntity(canonical_id=canonical_id, aliases=aliases)

@@ -82,7 +82,9 @@ class AnalystWorkflow:
         filename: str = "events.parquet",
     ) -> Path:
         if record.state not in {FindingState.INVESTIGATING, FindingState.INCIDENT}:
-            raise ValueError("Evidence may only be retained for an active investigation or incident")
+            raise ValueError(
+                "Evidence may only be retained for an active investigation or incident"
+            )
         if not selection_reason.strip():
             raise ValueError("selection_reason must not be empty")
         self.policy.assert_allowed(ArtifactKind.INCIDENT_EVIDENCE, explicit_incident=True)

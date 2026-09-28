@@ -19,8 +19,8 @@ from siem_anomaly.correlation import (
 from siem_anomaly.detectors.identity import detect_identity
 from siem_anomaly.detectors.registry import DetectorRegistry, build_default_registry
 from siem_anomaly.evaluation import IncidentDefinition, ReplayReport, replay_known_incident
-from siem_anomaly.features.identity import derive_identity_features
 from siem_anomaly.feature_catalog import FeatureRegistry, build_core_feature_registry
+from siem_anomaly.features.identity import derive_identity_features
 from siem_anomaly.features.store import FeatureRepository
 from siem_anomaly.findings import FindingStore
 from siem_anomaly.incidents import IncidentEvidenceStore

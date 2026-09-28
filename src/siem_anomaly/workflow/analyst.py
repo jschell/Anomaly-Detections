@@ -202,6 +202,12 @@ class AnalystWorkflow:
     @staticmethod
     def _read_json(path: Path) -> InvestigationRecord:
         payload: dict[str, object] = json.loads(path.read_text(encoding="utf-8"))
+        notes_value = payload.get("notes")
+        notes = (
+            tuple(str(item) for item in notes_value)
+            if isinstance(notes_value, list)
+            else ()
+        )
         return InvestigationRecord(
             investigation_id=str(payload["investigation_id"]),
             finding_id=str(payload["finding_id"]),
@@ -209,7 +215,7 @@ class AnalystWorkflow:
             state=FindingState(str(payload["state"])),
             created_at=datetime.fromisoformat(str(payload["created_at"])),
             updated_at=datetime.fromisoformat(str(payload["updated_at"])),
-            notes=tuple(str(item) for item in payload.get("notes", [])),
+            notes=notes,
             incident_id=(
                 str(payload["incident_id"]) if payload.get("incident_id") is not None else None
             ),

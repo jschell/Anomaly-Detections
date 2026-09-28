@@ -3,14 +3,23 @@
 ## Goal
 Create the standalone, versioned `siem_anomaly` Python package that existing Jupyter/SIEM repositories can import, using the repository's modern Python and uv conventions.
 
-## Current foundation already established
-- Root `README.md` documents project purpose, storage boundary, and uv-first workflow.
-- Root `AGENTS.md` defines contributor/agent operating rules.
-- `pyproject.toml` is the dependency/tooling source of truth.
-- Python baseline is `>=3.12`.
-- Initial `src/siem_anomaly/` package exists.
-- Initial pytest smoke test exists.
-- Tooling is standardized on uv, Ruff, Pyright, and pytest.
+## Progress
+
+Implemented:
+- root `README.md` and `AGENTS.md`
+- Python >=3.12, uv-first `pyproject.toml`, and committed `uv.lock`
+- `src/siem_anomaly/` package
+- typed `open_engagement()` / `EngagementContext`
+- Pandas, Polars, and PyArrow input support
+- provider-neutral actor/resource/event/finding records
+- Ruff, strict Pyright, pytest, and frozen-lock GitHub Actions CI
+- executable notebook integration example
+- CI currently passes `uv sync --frozen --all-extras --dev`, Ruff, Pyright, and pytest
+
+Remaining before completion:
+- stabilize the public detection/evaluation methods that depend on later detector/evaluation plans
+- add explicit package-level API documentation for those methods once their contracts exist
+- decide whether Plan 00 should close with placeholders for later APIs or wait until the first detector path exists
 
 ## Scope
 - Finalize `src/siem_anomaly/` package layout.

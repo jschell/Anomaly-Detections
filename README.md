@@ -97,4 +97,6 @@ uv run pytest
 
 ## Status
 
-Plans 01 and 03–10 are complete. Engagement evidence behavior is now driven by a versioned, strictly validated `config.yaml`, with temporary-investigation retention and cleanup while ordinary raw-event archival remains prohibited. Plans 00 and 02 remain active for final exit-criteria review.
+Plans 00–10 are complete and validated. There are currently no active or queued roadmap plans.
+
+The framework supports typed notebook integration, controlled engagement persistence, multi-provider behavioral analytics, explainable detection, known-incident evaluation, explicit evidence retention, gated model evaluation, cross-source finding correlation, and metrics-only cross-environment feature-portability research.

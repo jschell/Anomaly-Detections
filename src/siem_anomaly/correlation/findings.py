@@ -74,9 +74,7 @@ def correlate_findings(
                         continue
                     candidate_entity = _canonical_entity(candidate, resolver)
                     member_entity = _canonical_entity(member, resolver)
-                    same_entity = (
-                        candidate_entity is not None and candidate_entity == member_entity
-                    )
+                    same_entity = candidate_entity is not None and candidate_entity == member_entity
                     shared = _shared_dimensions(candidate, member)
                     if same_entity or shared:
                         members.add(candidate_index)

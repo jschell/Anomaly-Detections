@@ -1,17 +1,25 @@
 """Engagement-scoped entry point for analysis state."""
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 import polars as pl
 
 from siem_anomaly.adapters.frames import TabularData
 from siem_anomaly.adapters.registry import get_adapter
+from siem_anomaly.core.domain import Finding
 from siem_anomaly.core.profile import DataProfile
+from siem_anomaly.detectors.identity import detect_identity
+from siem_anomaly.detectors.registry import DetectorRegistry, build_default_registry
+from siem_anomaly.features.identity import derive_identity_features
+from siem_anomaly.features.store import FeatureRepository
+from siem_anomaly.findings import FindingStore
 from siem_anomaly.incidents import IncidentEvidenceStore
 from siem_anomaly.persistence.layout import EngagementPaths
 from siem_anomaly.persistence.policy import PersistencePolicy
 from siem_anomaly.persistence.stores import EngagementStores
+from siem_anomaly.provenance import CoverageWindow, ManifestRecord, ManifestStore
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,6 +28,10 @@ class EngagementContext:
     paths: EngagementPaths
     policy: PersistencePolicy
     stores: EngagementStores
+    features: FeatureRepository
+    manifests: ManifestStore
+    detector_registry: DetectorRegistry
+    findings: FindingStore
     incidents: IncidentEvidenceStore
 
     @classmethod
@@ -28,11 +40,16 @@ class EngagementContext:
         paths = EngagementPaths(root_path)
         paths.initialize()
         policy = PersistencePolicy()
+        stores = EngagementStores.create(paths=paths, policy=policy)
         return cls(
             root=root_path,
             paths=paths,
             policy=policy,
-            stores=EngagementStores.create(paths=paths, policy=policy),
+            stores=stores,
+            features=FeatureRepository(stores),
+            manifests=ManifestStore(paths.manifests),
+            detector_registry=build_default_registry(),
+            findings=FindingStore(paths.findings, policy),
             incidents=IncidentEvidenceStore(paths.incidents, policy),
         )
 
@@ -42,6 +59,116 @@ class EngagementContext:
     def normalize(self, data: TabularData, *, source: str) -> pl.DataFrame:
         return get_adapter(source).normalize(data)
 
-    def discover(self, data: TabularData, *, source: str) -> frozenset[str]:
+    def discover(self, data: TabularData, *, source: str) -> tuple[str, ...]:
         profile = self.profile(data, source=source)
-        return frozenset(capability.value for capability in profile.capabilities)
+        return tuple(spec.detector_id for spec in self.detector_registry.discover(profile))
+
+    def derive(
+        self,
+        data: TabularData,
+        *,
+        source: str,
+        query_id: str,
+        feature_version: str = "identity-v1",
+    ) -> ManifestRecord:
+        frame = self.normalize(data, source=source)
+        if frame.is_empty():
+            raise ValueError("Cannot derive behavioral state from an empty dataframe")
+        batch = derive_identity_features(frame)
+        timestamp = frame.select(
+            pl.col("timestamp")
+            .cast(pl.Utf8)
+            .str.to_datetime(strict=False, time_zone="UTC")
+            .min()
+            .alias("start"),
+            pl.col("timestamp")
+            .cast(pl.Utf8)
+            .str.to_datetime(strict=False, time_zone="UTC")
+            .max()
+            .alias("end"),
+        ).row(0, named=True)
+        start = _as_utc(timestamp["start"])
+        end = _as_utc(timestamp["end"])
+        provisional = ManifestRecord.create(
+            feature_set="identity",
+            feature_version=feature_version,
+            source=source,
+            query_id=query_id,
+            start=start,
+            end=end,
+            source_rows=frame.height,
+            derived_rows=0,
+            adapter_version="1",
+            framework_version="0.0.0",
+        )
+        derived_rows = self.features.persist_batch(
+            batch,
+            feature_version=feature_version,
+            token=provisional.query_hash,
+        )
+        record = ManifestRecord.create(
+            feature_set="identity",
+            feature_version=feature_version,
+            source=source,
+            query_id=query_id,
+            start=start,
+            end=end,
+            source_rows=frame.height,
+            derived_rows=derived_rows,
+            adapter_version="1",
+            framework_version="0.0.0",
+        )
+        self.manifests.write(record)
+        return record
+
+    def coverage(self, *, feature_version: str = "identity-v1") -> tuple[CoverageWindow, ...]:
+        return self.manifests.coverage(
+            feature_set="identity",
+            feature_version=feature_version,
+        )
+
+    def missing_windows(
+        self,
+        *,
+        start: datetime,
+        end: datetime,
+        feature_version: str = "identity-v1",
+    ) -> tuple[CoverageWindow, ...]:
+        return self.manifests.missing_windows(
+            feature_set="identity",
+            feature_version=feature_version,
+            start=start,
+            end=end,
+        )
+
+    def rebuild_baselines(
+        self,
+        *,
+        feature_version: str = "identity-v1",
+    ) -> tuple[pl.DataFrame, pl.DataFrame]:
+        return self.features.rebuild_rhythm(feature_version=feature_version)
+
+    def detect(
+        self,
+        data: TabularData,
+        *,
+        source: str,
+        feature_version: str = "identity-v1",
+        persist: bool = True,
+    ) -> tuple[Finding, ...]:
+        frame = self.normalize(data, source=source)
+        findings = detect_identity(
+            frame,
+            source=source,
+            repository=self.features,
+            feature_version=feature_version,
+        )
+        if persist and findings:
+            self.findings.write(findings, source=source, token=findings[0].finding_id)
+        return findings
+
+
+def _as_utc(value: object) -> datetime:
+    if isinstance(value, datetime):
+        return value.astimezone(UTC)
+    return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(UTC)

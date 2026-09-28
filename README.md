@@ -2,7 +2,7 @@
 
 Reusable Python anomaly-detection and behavioral-analytics framework for SIEM-backed Jupyter workflows.
 
-The project is intentionally separate from the notebook repositories that query SIEM data. Existing notebooks remain responsible for authentication, query execution, and interactive investigation. This package consumes in-memory tabular results, derives engagement-local behavioral state, runs detectors, and returns explainable findings.
+The project is intentionally separate from notebook repositories that query SIEM data. Existing notebooks remain responsible for authentication, query execution, and interactive investigation. This package consumes in-memory tabular results, derives engagement-local behavioral state, runs detectors, evaluates findings against known incidents, and supports controlled investigation/evidence workflows.
 
 See [doc/overview.md](doc/overview.md) for the architecture and storage model.
 
@@ -11,66 +11,41 @@ See [doc/overview.md](doc/overview.md) for the architecture and storage model.
 - SIEM remains the system of record for ordinary raw telemetry.
 - Raw query results may exist transiently in notebook/kernel memory but are not archived by this package.
 - Derived behavioral features, relationship state, rhythm-of-business baselines, models, findings, and evaluation artifacts may be stored in the engagement workspace.
-- Full raw events may be retained only through the explicit incident/investigation evidence workflow.
+- Full raw events may be retained only through explicit analyst selection tied to an investigation/incident.
 - The package is provider-neutral at its core. Microsoft is first; Okta, AWS, and GCP are planned.
 - Generic detectors depend on semantic capabilities, not provider modules.
-- Detector scores are anomaly/ranking signals, not probabilities that activity is malicious.
+- Detector/model scores are anomaly/ranking signals, not compromise probabilities.
+- Heavier models are retained only when measured operational metrics improve.
 
 ## Python Tooling
 
-This repository uses modern Python project conventions inspired by the Model Context Protocol Python SDK:
-
 - Python 3.12+
-- [uv](https://docs.astral.sh/uv/) for environments, dependency management, locking, and command execution
-- `pyproject.toml` as the project/tooling source of truth
+- uv for environment/dependency/lock management
 - committed `uv.lock`
+- `pyproject.toml` as source of truth
 - `src/` package layout
-- Ruff for linting and formatting
-- Pyright for static type checking
-- pytest for tests
-- Pydantic v2 where runtime validation/serialization is useful
-
-Do not introduce a parallel `requirements.txt` workflow.
-
-## Development Setup
-
-Install uv if it is not already available, then:
+- Ruff
+- strict Pyright
+- pytest
 
 ```bash
 uv sync --frozen --all-extras --dev
-```
-
-Run the required checks:
-
-```bash
 uv run ruff check .
 uv run ruff format --check .
 uv run pyright
 uv run pytest
 ```
 
-For active development from a sibling notebook repository:
-
-```bash
-uv pip install -e ../Anomaly-Detections
-```
-
-The preferred long-term integration is a versioned Git or package dependency rather than notebook `sys.path` manipulation.
-
 ## Notebook Workflow
-
-The public API is intentionally small and typed.
 
 ```python
 import siem_anomaly as sa
 
 ctx = sa.open_engagement(engagement_path)
 
-# Understand the current source and available detectors.
 profile = ctx.profile(df, source="microsoft.entra_signin")
 available = ctx.discover(df, source="microsoft.entra_signin")
 
-# Backfill behavioral history from SIEM query windows.
 ctx.derive(
     historical_df,
     source="microsoft.entra_signin",
@@ -79,38 +54,28 @@ ctx.derive(
     window_end=window_end,
 )
 
-# Check historical coverage and rebuild time-conditioned baselines.
 missing = ctx.missing_windows(start=lookback_start, end=lookback_end)
 ctx.rebuild_baselines()
 
-# Analyze current/transient SIEM results.
-findings = ctx.detect(df, source="microsoft.entra_signin")
+findings = ctx.detect(current_df, source="microsoft.entra_signin")
 ```
 
 Notebook repositories own SIEM access. This package does not own credentials or provider query execution.
 
-## Implemented Behavioral State
+## Behavioral State
 
 Current derived families include:
 
-- actor-hour
-- actor-day
-- service-hour
-- resource-hour
-- operation-hour
-- environment-hour
-- actor → IP
-- actor → application
-- actor → country
-- actor → resource
-- actor → operation
+- actor-hour / actor-day
+- service-hour / resource-hour / operation-hour / environment-hour
+- actor → IP/application/country/resource/operation
 - actor and environment weekday/hour rhythm baselines
 
-The framework stores these derived structures as engagement-local Parquet rather than retaining an ordinary raw-event archive.
+Only derived behavioral state is persisted by default.
 
-## Implemented Core Detectors
+## Explainable Detectors
 
-Current explainable identity detectors include:
+Current identity detectors include:
 
 - relationship novelty
 - conditional rarity
@@ -120,73 +85,65 @@ Current explainable identity detectors include:
 - robust historical deviation
 - organization-relative deviation
 
-Findings include stable IDs, source/entity/time context, reason codes, analyst-readable explanations, and enough context to pivot back to the SIEM.
+Findings include stable IDs, source/entity/time context, reason codes, explanations, and SIEM pivot context.
+
+## Known-Incident Replay
+
+Known incidents can be evaluated against a leakage-safe pre-incident baseline.
+
+Replay reports include:
+
+- incident rank
+- precision@10/@25/@50
+- recall@10/@25/@50
+- false positives by detector/entity
+- time-to-first-signal
+- detector contribution
+- feature effect sizes
+- detector ablation rank
+
+Replay uses a temporary derived workspace; ordinary source events are not archived.
+
+## Analyst Investigation and Evidence
+
+The explicit workflow is:
+
+`finding → investigating → incident` or `finding → investigating → dismissed`.
+
+Selected full events may be retained only through an analyst action with a selection reason. Temporary investigation evidence is removed when dismissed. Confirmed incident evidence is retained under the incident workspace with provenance manifests.
+
+## Multivariate Models
+
+Isolation Forest is implemented over derived actor-hour aggregates.
+
+Models follow a candidate lifecycle:
+
+`train candidate → score/backtest → compare to deterministic replay → retain or delete`.
+
+Raw score components, decision function, anomaly rank, training window, and feature version are preserved.
+
+A candidate is retained only if incident rank or precision@N improves. Otherwise it is deleted. Random Cut Forest escalation is deferred unless Isolation Forest first demonstrates incremental value on an evaluated workload.
 
 ## Historical Coverage and Provenance
 
-Each derived query partition records:
+Each derived query partition records feature version, source, query ID/hash, queried time range, source/derived row counts, adapter/framework versions, and overlap strategy.
 
-- feature set/version
-- source
-- query ID and hash
-- queried time range
-- source rows processed
-- derived rows produced
-- adapter/framework versions
-- overlap/rebuild strategy
-
-Empty SIEM result windows can still be recorded when `window_start` and `window_end` are supplied. This allows coverage to represent the actual queried period rather than only periods where events existed.
-
-## Repository Layout
-
-```text
-.
-├── AGENTS.md
-├── README.md
-├── pyproject.toml
-├── uv.lock
-├── doc/
-│   ├── overview.md
-│   └── plan/
-│       ├── active/
-│       ├── complete/
-│       └── queue/
-├── src/
-│   └── siem_anomaly/
-└── tests/
-    ├── unit/
-    ├── integration/
-    ├── synthetic/
-    └── regression/
-```
+Empty SIEM result windows can still be recorded, allowing coverage to represent the actual queried period.
 
 ## Plan Workflow
 
 Plans live under `doc/plan/`:
 
-- `queue/` — planned work not started
-- `active/` — work currently being implemented
+- `queue/` — planned
+- `active/` — currently executing
 - `complete/` — implemented and validated
-
-New plans are created in `queue/` and move through `active/` to `complete/`.
-
-See [doc/plan/README.md](doc/plan/README.md) for details.
 
 ## Storage Boundary
 
-Allowed engagement-local persisted artifacts include:
-
-- aggregate behavioral features
-- relationship/entity state
-- rhythm-of-business and historical baselines
-- model artifacts
-- anomaly findings
-- evaluation and analyst labels
-- manifests/provenance
-- selected full events explicitly promoted into incident evidence
+Allowed engagement-local artifacts include derived features/state, baselines, retained model artifacts, findings, evaluation results, provenance, analyst labels/notes, and explicitly selected incident evidence.
 
 Ordinary raw SIEM events must not be archived by this package.
 
 ## Status
 
-The first usable milestone through Plans 03–05 is complete. The package can build behavioral history from SIEM-backed notebook queries, track/backfill coverage, and produce explainable Entra sign-in anomaly findings without retaining ordinary raw telemetry.
+Plans 03–08 are complete. The project now supports an end-to-end Entra sign-in workflow from SIEM-backed Jupyter queries through behavioral baselines, explainable anomaly detection, known-incident evaluation, controlled incident evidence retention, and gated multivariate-model evaluation.

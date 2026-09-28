@@ -1,10 +1,7 @@
 # Queued Plans
 
-Plans 00–02 are active. Plans 03–08 are complete.
+There are currently no queued plans.
 
-Remaining queued sequence:
+Plans 03–10 are complete. Plans 00–02 remain active for residual foundation, persistence-configuration, and adapter-contract cleanup.
 
-1. [09 — Provider Expansion and Cross-Source Correlation](09-provider-expansion-and-cross-source-correlation.md)
-2. [10 — Cross-Environment Feature Portability Research](10-feature-portability-research.md)
-
-The project now has an end-to-end Microsoft Entra sign-in path from transient SIEM query results through derived behavioral history, explainable findings, incident replay/evaluation, analyst evidence workflow, and gated multivariate-model evaluation without retaining ordinary raw telemetry.
+The implemented roadmap now covers behavioral feature/state generation, provenance/backfill, explainable detection, known-incident replay, analyst evidence workflow, gated multivariate models, multi-provider correlation, and cross-environment feature-portability research.

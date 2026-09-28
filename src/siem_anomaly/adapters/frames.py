@@ -1,6 +1,6 @@
 """Normalize supported dataframe/table inputs to Polars."""
 
-from typing import cast
+from typing import cast, overload
 
 import pandas as pd
 import polars as pl
@@ -9,7 +9,19 @@ import pyarrow as pa
 type TabularData = pd.DataFrame | pl.DataFrame | pa.Table
 
 
-def to_polars(data: TabularData) -> pl.DataFrame:
+@overload
+def to_polars(data: pd.DataFrame) -> pl.DataFrame: ...
+
+
+@overload
+def to_polars(data: pl.DataFrame) -> pl.DataFrame: ...
+
+
+@overload
+def to_polars(data: pa.Table) -> pl.DataFrame: ...
+
+
+def to_polars(data: object) -> pl.DataFrame:
     """Convert a supported in-memory tabular object to a Polars DataFrame."""
     if isinstance(data, pl.DataFrame):
         return data

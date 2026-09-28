@@ -40,7 +40,10 @@ class MappingAdapter:
         return replace(
             self,
             bindings=tuple(
-                replace(binding, source_field=overrides.get(binding.canonical_name, binding.source_field))
+                replace(
+                    binding,
+                    source_field=overrides.get(binding.canonical_name, binding.source_field),
+                )
                 for binding in self.bindings
             ),
         )

@@ -220,9 +220,7 @@ def detect_identity(
                         score=score,
                         entity=actor,
                         reason_codes=("actor_hour_volume_above_p95",),
-                        reasons=(
-                            f"hourly event count {count} exceeds historical p95 {p95:.2f}",
-                        ),
+                        reasons=(f"hourly event count {count} exceeds historical p95 {p95:.2f}",),
                     )
                 )
 
@@ -249,9 +247,7 @@ def detect_identity(
                         score=min(1.0, robust_score / 8.0),
                         entity=actor,
                         reason_codes=("actor_hour_robust_deviation",),
-                        reasons=(
-                            f"hourly volume robust deviation score is {robust_score:.2f}",
-                        ),
+                        reasons=(f"hourly volume robust deviation score is {robust_score:.2f}",),
                     )
                 )
 

@@ -12,14 +12,21 @@ from siem_anomaly.core.domain import Finding
 from siem_anomaly.core.profile import DataProfile
 from siem_anomaly.detectors.identity import detect_identity
 from siem_anomaly.detectors.registry import DetectorRegistry, build_default_registry
+from siem_anomaly.evaluation import IncidentDefinition, ReplayReport, replay_known_incident
 from siem_anomaly.features.identity import derive_identity_features
 from siem_anomaly.features.store import FeatureRepository
 from siem_anomaly.findings import FindingStore
 from siem_anomaly.incidents import IncidentEvidenceStore
+from siem_anomaly.models import (
+    IsolationForestArtifact,
+    fit_isolation_forest,
+    score_isolation_forest,
+)
 from siem_anomaly.persistence.layout import EngagementPaths
 from siem_anomaly.persistence.policy import PersistencePolicy
 from siem_anomaly.persistence.stores import EngagementStores
 from siem_anomaly.provenance import CoverageWindow, ManifestRecord, ManifestStore
+from siem_anomaly.workflow import AnalystWorkflow
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,6 +40,7 @@ class EngagementContext:
     detector_registry: DetectorRegistry
     findings: FindingStore
     incidents: IncidentEvidenceStore
+    workflow: AnalystWorkflow
 
     @classmethod
     def open(cls, root: str | Path) -> "EngagementContext":
@@ -51,6 +59,7 @@ class EngagementContext:
             detector_registry=build_default_registry(),
             findings=FindingStore(paths.findings, policy),
             incidents=IncidentEvidenceStore(paths.incidents, policy),
+            workflow=AnalystWorkflow(paths.investigations, paths.incidents, policy),
         )
 
     def profile(self, data: TabularData, *, source: str) -> DataProfile:
@@ -167,6 +176,49 @@ class EngagementContext:
         if persist and findings:
             self.findings.write(findings, source=source, token=findings[0].finding_id)
         return findings
+
+    def replay(
+        self,
+        *,
+        baseline_data: TabularData,
+        replay_data: TabularData,
+        incident: IncidentDefinition,
+        feature_version: str = "identity-v1",
+    ) -> ReplayReport:
+        return replay_known_incident(
+            evaluation_root=self.paths.evaluation,
+            baseline_data=baseline_data,
+            replay_data=replay_data,
+            incident=incident,
+            feature_version=feature_version,
+        )
+
+    def train_isolation_forest(
+        self,
+        *,
+        model_id: str,
+        feature_version: str = "identity-v1",
+        contamination: float = 0.02,
+    ) -> IsolationForestArtifact:
+        actor_hour = self.features.read_feature("actor_hour", feature_version=feature_version)
+        return fit_isolation_forest(
+            actor_hour,
+            models_root=self.paths.models,
+            model_id=model_id,
+            feature_version=feature_version,
+            contamination=contamination,
+        )
+
+    def score_isolation_forest(
+        self,
+        data: TabularData,
+        *,
+        source: str,
+        artifact: IsolationForestArtifact,
+    ) -> pl.DataFrame:
+        normalized = self.normalize(data, source=source)
+        actor_hour = derive_identity_features(normalized).actor_hour
+        return score_isolation_forest(actor_hour, artifact)
 
 
 def _event_window(frame: pl.DataFrame) -> tuple[datetime, datetime]:

@@ -14,6 +14,7 @@ See [doc/overview.md](doc/overview.md) for the architecture and storage model.
 - Full raw events may be retained only through the explicit incident/investigation evidence workflow.
 - The package is provider-neutral at its core. Microsoft is first; Okta, AWS, and GCP are planned.
 - Generic detectors depend on semantic capabilities, not provider modules.
+- Detector scores are anomaly/ranking signals, not probabilities that activity is malicious.
 
 ## Python Tooling
 
@@ -36,7 +37,7 @@ Do not introduce a parallel `requirements.txt` workflow.
 Install uv if it is not already available, then:
 
 ```bash
-uv sync --all-extras --dev
+uv sync --frozen --all-extras --dev
 ```
 
 Run the required checks:
@@ -48,7 +49,7 @@ uv run pyright
 uv run pytest
 ```
 
-For active development from a sibling notebook repository, install this package editable:
+For active development from a sibling notebook repository:
 
 ```bash
 uv pip install -e ../Anomaly-Detections
@@ -56,21 +57,85 @@ uv pip install -e ../Anomaly-Detections
 
 The preferred long-term integration is a versioned Git or package dependency rather than notebook `sys.path` manipulation.
 
-## Intended Notebook Usage
+## Notebook Workflow
 
-The public API should remain small and typed.
+The public API is intentionally small and typed.
 
 ```python
 import siem_anomaly as sa
 
 ctx = sa.open_engagement(engagement_path)
 
+# Understand the current source and available detectors.
 profile = ctx.profile(df, source="microsoft.entra_signin")
 available = ctx.discover(df, source="microsoft.entra_signin")
+
+# Backfill behavioral history from SIEM query windows.
+ctx.derive(
+    historical_df,
+    source="microsoft.entra_signin",
+    query_id="entra:2026-07-01:2026-09-28",
+    window_start=window_start,
+    window_end=window_end,
+)
+
+# Check historical coverage and rebuild time-conditioned baselines.
+missing = ctx.missing_windows(start=lookback_start, end=lookback_end)
+ctx.rebuild_baselines()
+
+# Analyze current/transient SIEM results.
 findings = ctx.detect(df, source="microsoft.entra_signin")
 ```
 
-Notebook repositories own SIEM access; this package does not own credentials or provider query execution.
+Notebook repositories own SIEM access. This package does not own credentials or provider query execution.
+
+## Implemented Behavioral State
+
+Current derived families include:
+
+- actor-hour
+- actor-day
+- service-hour
+- resource-hour
+- operation-hour
+- environment-hour
+- actor → IP
+- actor → application
+- actor → country
+- actor → resource
+- actor → operation
+- actor and environment weekday/hour rhythm baselines
+
+The framework stores these derived structures as engagement-local Parquet rather than retaining an ordinary raw-event archive.
+
+## Implemented Core Detectors
+
+Current explainable identity detectors include:
+
+- relationship novelty
+- conditional rarity
+- relationship change
+- rhythm-of-business deviation
+- hourly volume deviation
+- robust historical deviation
+- organization-relative deviation
+
+Findings include stable IDs, source/entity/time context, reason codes, analyst-readable explanations, and enough context to pivot back to the SIEM.
+
+## Historical Coverage and Provenance
+
+Each derived query partition records:
+
+- feature set/version
+- source
+- query ID and hash
+- queried time range
+- source rows processed
+- derived rows produced
+- adapter/framework versions
+- overlap/rebuild strategy
+
+Empty SIEM result windows can still be recorded when `window_start` and `window_end` are supplied. This allows coverage to represent the actual queried period rather than only periods where events existed.
 
 ## Repository Layout
 
@@ -94,8 +159,6 @@ Notebook repositories own SIEM access; this package does not own credentials or 
     ├── synthetic/
     └── regression/
 ```
-
-The implementation layout will be completed under Plan 00.
 
 ## Plan Workflow
 
@@ -126,4 +189,4 @@ Ordinary raw SIEM events must not be archived by this package.
 
 ## Status
 
-The repository is currently in planning/foundation stage. Implementation begins with the queued plans under `doc/plan/queue/`.
+The first usable milestone through Plans 03–05 is complete. The package can build behavioral history from SIEM-backed notebook queries, track/backfill coverage, and produce explainable Entra sign-in anomaly findings without retaining ordinary raw telemetry.

@@ -146,8 +146,4 @@ class ManifestStore:
                 break
         if cursor < requested_end:
             missing.append(CoverageWindow(cursor, requested_end))
-        return tuple(
-            window
-            for window in missing
-            if window.end - window.start > timedelta(0)
-        )
+        return tuple(window for window in missing if window.end - window.start > timedelta(0))

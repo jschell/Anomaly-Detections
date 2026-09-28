@@ -53,6 +53,7 @@ def test_isolation_forest_is_versioned_scored_and_gated_by_incremental_value(
     )
     assert artifact.model_path.exists()
     assert artifact.metadata_path.exists()
+    assert "_candidates" in artifact.model_path.parts
 
     anomaly_time = datetime(2026, 9, 28, 9, tzinfo=UTC)
     current = pl.DataFrame(
@@ -91,12 +92,45 @@ def test_isolation_forest_is_versioned_scored_and_gated_by_incremental_value(
     )
     assert comparison.model_rank is not None
     assert comparison.retained
+    retained = ctx.finalize_isolation_forest(artifact, comparison)
+    assert retained is not None
+    assert retained.model_path.exists()
+    assert "_candidates" not in retained.model_path.parts
+    assert retained.metadata_path.exists()
     assert (
         random_cut_forest_decision(isolation_forest_retained=comparison.retained).status
         == "candidate"
     )
 
 
-def test_model_escalation_stops_without_incremental_value() -> None:
+def test_rejected_candidate_is_deleted_and_model_escalation_stops(tmp_path: Path) -> None:
+    ctx = open_engagement(tmp_path / "anomaly")
+    ctx.derive(
+        _training_events(),
+        source="microsoft.entra_signin",
+        query_id="training-window",
+    )
+    artifact = ctx.train_isolation_forest(
+        model_id="iforest-rejected",
+        contamination=0.05,
+    )
+    scores = pl.DataFrame(
+        {
+            "actor": ["control@example.com"],
+            "window": [datetime(2026, 9, 28, 9, tzinfo=UTC)],
+            "anomaly_score": [0.1],
+        }
+    )
+    comparison = compare_model_to_deterministic(
+        scores,
+        incident_entities=("incident@example.com",),
+        incident_start=datetime(2026, 9, 28, 9, tzinfo=UTC),
+        incident_end=datetime(2026, 9, 28, 10, tzinfo=UTC),
+        deterministic_rank=1,
+        deterministic_precision_at_n=1.0,
+    )
+    assert not comparison.retained
+    assert ctx.finalize_isolation_forest(artifact, comparison) is None
+    assert not artifact.model_path.parent.exists()
     decision = random_cut_forest_decision(isolation_forest_retained=False)
     assert decision.status == "deferred"

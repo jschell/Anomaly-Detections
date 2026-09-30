@@ -16,6 +16,9 @@ OKTA_SYSTEM_LOG_ADAPTER = MappingAdapter(
         ),
         FieldBinding("source_ip", "client.ipAddress", Capability.SOURCE_IP, "client_origin"),
         FieldBinding(
+            "asn", "securityContext.asNumber", Capability.ASN, "client_network_enrichment"
+        ),
+        FieldBinding(
             "application",
             "target.displayName",
             Capability.APPLICATION,

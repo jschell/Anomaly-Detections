@@ -55,6 +55,14 @@ findings = ctx.detect(current_df, source="microsoft.entra_signin")
 
 The same capability-driven pipeline can operate on Okta and cloud-control sources where the required canonical fields are available.
 
+## Optional Network Enrichment
+
+The package can consume already enriched ASN and network classification columns. Built-in Entra sign-in and Okta System Log adapters recognize their native ASN fields. Other sources can bind transient columns using `enrichment_fields={"asn": "my_asn", "network_trait": "my_traits"}` on `profile`, `discover`, `derive`, and `detect`. For attached fields, pass `enrichment_source` and `enrichment_version` to `derive` and `detect`. See the runnable synthetic [example](examples/network_enrichment.py).
+
+ASNs normalize to decimal strings. Supported network classifications are `hosting`, `cdn`, `proxy`, and `vpn`, including comma- or pipe-separated combinations. Unknown classifications are treated as missing. Classification is descriptive, not proof of malicious activity. Network history defaults to `identity-network-v1`, separately from legacy `identity-v1`; a source or enrichment snapshot change requires a new feature version and backfill. A feature version may contain one source and enrichment identity. Existing `identity-v1` history cannot supply an ASN baseline.
+
+Network detectors require a continuous seven-day SIEM query window immediately before scoring, at least 95% valid enrichment among returned events (or an explicitly empty query window), and at least two historical observed days spanning seven days and earlier than the scored day. Supply the queried `window_start` and `window_end` when deriving history; timestamps inferred only from returned events cannot establish coverage of quiet intervals. Hourly ASN diversity requires three earlier actor-hour observations spanning seven days. They are candidate/experimental heuristics until evaluated across approved replay cases; scores are prioritization signals. The current notebook integration must supply enriched columns and metadata; this package does not query enrichment services.
+
 ## Cross-Source Correlation
 
 Canonical entity aliases are explicitly mapped with confidence; the framework does not guess identity equivalence.
@@ -97,6 +105,6 @@ uv run pytest
 
 ## Status
 
-Plans 00–10 are complete and validated. There are currently no active or queued roadmap plans.
+Plans 00–11 are complete and locally validated. There are no active or queued roadmap plans.
 
 The framework supports typed notebook integration, controlled engagement persistence, multi-provider behavioral analytics, explainable detection, known-incident evaluation, explicit evidence retention, gated model evaluation, cross-source finding correlation, and metrics-only cross-environment feature-portability research.

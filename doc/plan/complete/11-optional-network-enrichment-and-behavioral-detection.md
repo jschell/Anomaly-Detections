@@ -71,3 +71,17 @@ Use synthetic fixtures and approved de-identified evaluation summaries only:
 - Four detectors have documented eligibility and explanations, with no future-data leakage or unsupported claims about maliciousness.
 - Synthetic tests and replay evaluation report incremental value and false-positive costs; any unsupported detector remains disabled or experimental with the reason documented.
 - Documentation and all repository validation gates pass before moving this plan to `complete/`.
+
+## Implementation decisions and validation
+
+- Canonical ASN is a decimal string from 1 through 4294967295. The initial multi-value trait taxonomy is hosting, CDN, proxy, and VPN; unsupported values become unknown rather than suspicious.
+- Built-in Entra sign-in and Okta System Log adapters use their native ASN fields. Other enriched fields use the explicit immutable adapter binding through the context API. Attached enrichment requires a source and snapshot version.
+- `identity-network-v1` is separate from `identity-v1` and is scoped to one source and enrichment identity. The manifest records field completeness and query coverage. A changed dataset or source requires a new version and SIEM backfill.
+- Operational detection requires continuous declared coverage of the preceding seven days and at least 95% valid field coverage in nonempty batches. Empty queried windows may bridge quiet periods. Relationship novelty also requires two observed historical days spanning at least seven days. Diversity requires three prior actor-hour observations spanning seven days. Same-day and future relationship state is ineligible.
+- Stable single-ASN actors emit `asn_change`; actors with multiple historical ASNs emit `asn_novelty`, avoiding duplicate alerts for one pair. Classification findings state the trait and enrichment source without alleging maliciousness. Scores are preliminary prioritization heuristics.
+- Synthetic integration tests cover native and attached fields, invalid and partial enrichment, all four detectors, repeated derivation, source/snapshot isolation, insufficient and future-only history, missing coverage, and replay contribution/ablation. The notebook bridge remains a separate integration task.
+- No real engagement data or replay outcomes were added. Cross-environment calibration remains necessary before promoting candidate or experimental feature maturity.
+
+## Completion
+
+Implemented and locally validated with `uv sync --all-extras --dev`, Ruff check and formatting, Pyright, and 44 passing pytest cases. Network features remain candidate or experimental pending broader approved replay calibration. The consuming notebook bridge is a separate repository change.

@@ -17,6 +17,8 @@ class Capability(StrEnum):
     DEVICE = "device"
     AUTHENTICATION = "authentication"
     COUNTRY = "country"
+    ASN = "asn"
+    NETWORK_TRAIT = "network_trait"
 
 
 @dataclass(frozen=True, slots=True)

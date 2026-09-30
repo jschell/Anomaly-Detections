@@ -26,6 +26,8 @@ class DetectorRegistry:
 def build_default_registry() -> DetectorRegistry:
     actor_ip = frozenset({Capability.ACTOR, Capability.SOURCE_IP})
     actor_time = frozenset({Capability.ACTOR, Capability.TIMESTAMP})
+    actor_asn = frozenset({Capability.ACTOR, Capability.TIMESTAMP, Capability.ASN})
+    actor_trait = frozenset({Capability.ACTOR, Capability.TIMESTAMP, Capability.NETWORK_TRAIT})
     return DetectorRegistry(
         specs=(
             DetectorSpec(
@@ -62,6 +64,16 @@ def build_default_registry() -> DetectorRegistry:
                 "identity.organization_relative_deviation",
                 actor_time,
                 "Actor volume is extreme relative to organization peers at that time.",
+            ),
+            DetectorSpec("identity.asn_novelty", actor_asn, "New actor/ASN relationship."),
+            DetectorSpec("identity.asn_change", actor_asn, "Stable actor adopts a new ASN."),
+            DetectorSpec(
+                "identity.asn_diversity", actor_asn, "Hourly ASN diversity exceeds history."
+            ),
+            DetectorSpec(
+                "identity.network_trait_novelty",
+                actor_trait,
+                "New actor/network classification relationship.",
             ),
         )
     )

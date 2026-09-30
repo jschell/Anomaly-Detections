@@ -15,6 +15,7 @@ ENTRA_SIGNIN_ADAPTER = MappingAdapter(
             True,
         ),
         FieldBinding("source_ip", "IPAddress", Capability.SOURCE_IP, "client_origin"),
+        FieldBinding("asn", "AutonomousSystemNumber", Capability.ASN, "client_network_enrichment"),
         FieldBinding(
             "application",
             "AppDisplayName",

@@ -18,6 +18,8 @@ class DerivedBatch:
     actor_country: pl.DataFrame
     actor_resource: pl.DataFrame
     actor_operation: pl.DataFrame
+    actor_asn: pl.DataFrame
+    actor_network_trait: pl.DataFrame
 
 
 def _with_time(frame: pl.DataFrame) -> pl.DataFrame:
@@ -42,6 +44,7 @@ def _actor_time_features(frame: pl.DataFrame, *, every: str) -> pl.DataFrame:
         )
     for column, alias in (
         ("source_ip", "unique_ips"),
+        ("asn", "unique_asns"),
         ("application", "unique_apps"),
         ("country", "unique_countries"),
         ("target", "unique_resources"),
@@ -110,6 +113,15 @@ def _relationship_state(frame: pl.DataFrame, value_column: str) -> pl.DataFrame:
     )
 
 
+def _network_trait_state(frame: pl.DataFrame) -> pl.DataFrame:
+    if "network_trait" not in frame.columns:
+        return pl.DataFrame()
+    expanded = frame.with_columns(
+        pl.col("network_trait").str.split(",").alias("network_trait")
+    ).explode("network_trait", empty_as_null=True)
+    return _relationship_state(expanded, "network_trait")
+
+
 def derive_identity_features(frame: pl.DataFrame) -> DerivedBatch:
     """Derive aggregate identity behavior without preserving event-level rows."""
     if "actor" not in frame.columns or "timestamp" not in frame.columns:
@@ -126,4 +138,6 @@ def derive_identity_features(frame: pl.DataFrame) -> DerivedBatch:
         actor_country=_relationship_state(frame, "country"),
         actor_resource=_relationship_state(frame, "target"),
         actor_operation=_relationship_state(frame, "action"),
+        actor_asn=_relationship_state(frame, "asn"),
+        actor_network_trait=_network_trait_state(frame),
     )

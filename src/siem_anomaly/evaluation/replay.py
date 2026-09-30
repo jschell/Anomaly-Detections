@@ -4,16 +4,20 @@ import json
 import math
 import tempfile
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 import polars as pl
 
+from siem_anomaly.adapters.base import MappingAdapter
 from siem_anomaly.adapters.frames import TabularData
 from siem_anomaly.adapters.registry import get_adapter
 from siem_anomaly.core.domain import Finding
 from siem_anomaly.detectors.identity import detect_identity
+from siem_anomaly.detectors.network import detect_network
+from siem_anomaly.detectors.registry import build_default_registry
 from siem_anomaly.features.identity import derive_identity_features
 from siem_anomaly.features.store import FeatureRepository
 from siem_anomaly.persistence.layout import EngagementPaths
@@ -60,6 +64,8 @@ class ReplayReport:
     effect_sizes: dict[str, float]
     ablation_rank_without_detector: dict[str, int | None]
     finding_count: int
+    enrichment_source: str | None = None
+    enrichment_version: str | None = None
 
 
 def _with_timestamp(frame: pl.DataFrame) -> pl.DataFrame:
@@ -163,9 +169,28 @@ def replay_known_incident(
     replay_data: TabularData,
     incident: IncidentDefinition,
     feature_version: str = "identity-v1",
+    enrichment_fields: Mapping[str, str] | None = None,
+    enrichment_source: str | None = None,
+    enrichment_version: str | None = None,
 ) -> ReplayReport:
     """Replay without future-data leakage and persist only derived evaluation output."""
     adapter = get_adapter(incident.source)
+    if enrichment_fields:
+        if not enrichment_source or not enrichment_version:
+            raise ValueError("Attached enrichment requires source and version provenance")
+        if not isinstance(adapter, MappingAdapter):
+            raise TypeError("Adapter does not support declarative enrichment bindings")
+        adapter = adapter.with_enrichment(enrichment_fields)
+    profile = adapter.profile(replay_data)
+    enabled = frozenset(spec.detector_id for spec in build_default_registry().discover(profile))
+    network_enabled = enabled & {
+        "identity.asn_novelty",
+        "identity.asn_change",
+        "identity.asn_diversity",
+        "identity.network_trait_novelty",
+    }
+    if feature_version == "identity-v1" and network_enabled:
+        raise ValueError("Network enrichment requires a new feature version")
     baseline = _with_timestamp(adapter.normalize(baseline_data))
     cutoff = incident.exclusion_start or incident.start
     baseline = baseline.filter(pl.col("_ts") < cutoff.astimezone(UTC)).drop("_ts")
@@ -182,12 +207,25 @@ def replay_known_incident(
                 feature_version=feature_version,
                 token="pre-incident-baseline",
             )
-        findings = detect_identity(
+        identity_findings = detect_identity(
             replay,
             source=incident.source,
             repository=repository,
             feature_version=feature_version,
         )
+        network_findings = (
+            detect_network(
+                replay,
+                source=incident.source,
+                repository=repository,
+                feature_version=feature_version,
+                enabled=enabled,
+                enrichment_source=enrichment_source or "source_native",
+            )
+            if network_enabled
+            else ()
+        )
+        findings = (*identity_findings, *network_findings)
 
     ranked = sorted(findings, key=lambda finding: (-finding.score, finding.finding_id))
     positives = [finding for finding in ranked if _is_incident_finding(finding, incident)]
@@ -231,6 +269,8 @@ def replay_known_incident(
         effect_sizes=_feature_effect_sizes(effect_input, incident),
         ablation_rank_without_detector=ablation,
         finding_count=len(ranked),
+        enrichment_source=enrichment_source or ("source_native" if network_enabled else None),
+        enrichment_version=enrichment_version or ("1" if network_enabled else None),
     )
     _persist_report(evaluation_root, report)
     return report

@@ -48,6 +48,8 @@ class FeatureRepository:
             ("actor_country", batch.actor_country),
             ("actor_resource", batch.actor_resource),
             ("actor_operation", batch.actor_operation),
+            ("actor_asn", batch.actor_asn),
+            ("actor_network_trait", batch.actor_network_trait),
         ):
             if not frame.is_empty():
                 self.stores.state.write(

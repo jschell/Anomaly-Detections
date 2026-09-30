@@ -2,9 +2,10 @@
 
 import hashlib
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import cast
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,6 +28,9 @@ class ManifestRecord:
     adapter_version: str
     framework_version: str
     overlap_strategy: str = "idempotent_query_partition_then_rebuild"
+    enrichment_source: str | None = None
+    enrichment_version: str | None = None
+    capability_coverage: dict[str, float] = field(default_factory=dict[str, float])
 
     @classmethod
     def create(
@@ -42,8 +46,13 @@ class ManifestRecord:
         derived_rows: int,
         adapter_version: str,
         framework_version: str,
+        enrichment_source: str | None = None,
+        enrichment_version: str | None = None,
+        capability_coverage: dict[str, float] | None = None,
     ) -> "ManifestRecord":
-        query_hash = hashlib.sha256(query_id.encode()).hexdigest()[:16]
+        query_hash = hashlib.sha256(f"{source}|{feature_version}|{query_id}".encode()).hexdigest()[
+            :16
+        ]
         return cls(
             feature_set=feature_set,
             feature_version=feature_version,
@@ -56,6 +65,9 @@ class ManifestRecord:
             derived_rows=derived_rows,
             adapter_version=adapter_version,
             framework_version=framework_version,
+            enrichment_source=enrichment_source,
+            enrichment_version=enrichment_version,
+            capability_coverage=capability_coverage or {},
         )
 
 
@@ -98,6 +110,24 @@ class ManifestStore:
                         "overlap_strategy",
                         "idempotent_query_partition_then_rebuild",
                     )
+                ),
+                enrichment_source=(
+                    str(payload["enrichment_source"])
+                    if payload.get("enrichment_source") is not None
+                    else None
+                ),
+                enrichment_version=(
+                    str(payload["enrichment_version"])
+                    if payload.get("enrichment_version") is not None
+                    else None
+                ),
+                capability_coverage=(
+                    {
+                        str(key): float(str(value))
+                        for key, value in cast("dict[object, object]", raw_coverage).items()
+                    }
+                    if isinstance(raw_coverage := payload.get("capability_coverage"), dict)
+                    else {}
                 ),
             )
             if feature_set is not None and record.feature_set != feature_set:
